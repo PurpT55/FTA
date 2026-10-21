@@ -7,6 +7,7 @@ import math
 from collections import Counter, defaultdict
 
 from .model import Context, Finding
+from .registry import analyzer
 
 DYNDNS = ("duckdns.org", "no-ip.com", "no-ip.org", "ddns.net", "hopto.org", "zapto.org", "sytes.net", "dynu.net",
           "freedns.afraid.org", "mooo.com", "dyndns.org")
@@ -31,6 +32,7 @@ def _entropy(s):
 
 
 def classify(domain: str, pkg: str, iocs) -> str | None:
+    """Offline reputation flag for a domain: IOC:<family>, dynamic-dns, tunnel-service, paste/exfil-service, telegram-bot-api, tor, dga-like, risky-tld, tracker, or None."""
     d = domain.lower().rstrip(".")
     fam = iocs.match_domain(d)
     if fam:
@@ -56,7 +58,9 @@ def classify(domain: str, pkg: str, iocs) -> str | None:
     return None
 
 
+@analyzer("network", 80, "Network", "Sentinel DNS log, per-app volume, endpoints embedded in APKs")
 def analyse_network(ctx: Context) -> None:
+    """Network evidence from DroidSentinel, NetworkStats and APK static analysis."""
     def add(fid, sev, cat, title, pkg=None, detail="", mitre=None, evidence=None, source="network"):
         ctx.add(Finding(fid, sev, cat, title, detail, pkg, mitre, source, evidence or []))
 

@@ -1,23 +1,33 @@
-"""Builds a synthetic DroidCollector archive with planted indicators, for demo and regression tests.
+"""Synthetic DroidCollector archive with planted indicators, for the demo and the test-suite.
 
-    python3 tests/make_sample.py sample.zip [--apk some.apk]
-    python3 -m droidtriage sample.zip -o sample_report
+    droidtriage sample demo.zip [--apk some-real.apk]
+    droidtriage analyze demo.zip
+
+Planted: a known stalkerware package (from the public stalkerware-indicators list) that is hidden,
+has accessibility + device admin + overlay and uploads while never opened; a fake "Google Update"
+with a vendor-like package name and a StrandHogg task affinity; a platform-key-signed user app;
+a packer library; root/Frida/clipboard lines in logcat; background mic use in appops; Sentinel DNS
+lookups of an IOC domain and the Telegram Bot API. If ``--apk`` is given, that (real) APK is embedded
+as ``com.example.flashlight`` so static analysis runs too.
 """
-import argparse
+from __future__ import annotations
+
 import hashlib
 import json
 import time
 import zipfile
 
-NOW = time.time()
+NOW = time.time()  # evaluated at import; the sample is always 'recent'
 
 
 def iso(t):
+    """Epoch seconds -> ISO-8601 UTC."""
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t))
 
 
 def app(pkg, label, installer, system=False, launcher=True, granted=(), requested=(), cert="aa" * 32, sha=None,
         first=NOW - 400 * 86400, comps=(), libs=()):
+    """One packages.json record with sensible defaults."""
     return {"package": pkg, "label": label, "uid": 10000 + abs(hash(pkg)) % 9000, "versionCode": 1, "versionName": "1.0",
             "installer": installer, "firstInstallTime": iso(first), "lastUpdateTime": iso(first), "system": system,
             "updatedSystem": False, "enabled": True, "hasLauncher": launcher, "debuggable": False, "cleartextTraffic": False,
@@ -33,12 +43,9 @@ SPY = [P + x for x in ("ACCESS_FINE_LOCATION", "ACCESS_BACKGROUND_LOCATION", "RE
                        "READ_CALL_LOG", "READ_CONTACTS", "CAMERA", "RECEIVE_BOOT_COMPLETED")]
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("out")
-    ap.add_argument("--apk", help="a real APK to embed as com.example.flashlight (exercises static analysis)")
-    a = ap.parse_args()
-    apk_bytes = open(a.apk, "rb").read() if a.apk else None
+def build(out: str, apk_path: str | None = None) -> str:
+    """Write the synthetic archive to ``out`` and return the path."""
+    apk_bytes = open(apk_path, "rb").read() if apk_path else None
     platform = "pp" * 32
     t_side = NOW - 5 * 86400
     apps = [
@@ -57,7 +64,7 @@ def main():
             sha=hashlib.sha256(apk_bytes).hexdigest() if apk_bytes else None, libs=["libjiagu.so"]),
         app("org.droidsuite.sentinel", "DroidSentinel", None),
     ]
-    with zipfile.ZipFile(a.out, "w", zipfile.ZIP_DEFLATED) as z:
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("manifest.json", json.dumps({"tool": "DroidCollector", "device": "Synthetic Pixel (Android 14, API 34)",
                                                 "startedAt": iso(NOW), "capabilities": {"READ_LOGS": True, "DUMP": True}}))
         z.writestr("device/getprop.txt", "\n".join(f"[{k}]: [{v}]" for k, v in {
@@ -100,8 +107,4 @@ def main():
             "events": [{"ts": NOW * 1000, "severity": "HIGH", "category": "SUSPICIOUS", "package": "com.systemservice",
                         "type": "net.bgupload", "title": "Large upload while screen off: System Service", "detail": "51200 KB"}],
             "virustotal": [], "traffic": {}}}))
-    print("wrote", a.out)
-
-
-if __name__ == "__main__":
-    main()
+    return out

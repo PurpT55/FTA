@@ -1,4 +1,12 @@
-"""VirusTotal v3 hash lookups (never uploads unless explicitly asked, with confirmation)."""
+"""VirusTotal v3 client and the ``virustotal`` analyser.
+
+Privacy contract: :meth:`VirusTotal.lookup` sends only a SHA-256. :meth:`VirusTotal.upload` sends file
+content and is reachable only through ``droidtriage vt upload`` / ``analyze --vt-upload`` after
+:func:`confirm_upload` (typed confirmation, or ``--yes``).
+
+Free API tier: 4 requests/min, 500/day -> requests are spaced :data:`SPACING` seconds apart and
+results cached in ``~/.cache/droidtriage/vt_cache.json`` for 7 days.
+"""
 from __future__ import annotations
 
 import json
@@ -8,12 +16,17 @@ import time
 import urllib.error
 import urllib.request
 
+from .console import console
+from .model import Context
+from .registry import analyzer
+
 API = "https://www.virustotal.com/api/v3"
-CACHE = os.path.join(os.path.expanduser("~"), ".cache", "droidtriage", "vt_cache.json")
+CACHE = os.environ.get("DROIDTRIAGE_VT_CACHE") or os.path.join(os.path.expanduser("~"), ".cache", "droidtriage", "vt_cache.json")
 SPACING = 15.5  # free tier: 4 requests / minute
 
 
 class VirusTotal:
+    """Minimal v3 client with on-disk cache and request spacing."""
     def __init__(self, key: str):
         self.key = key
         self._last = 0.0
@@ -41,6 +54,7 @@ class VirusTotal:
             return e.code, {}
 
     def lookup(self, sha256: str, max_age_days: int = 7) -> dict | None:
+        """Verdict for a SHA-256: {malicious (-1 = unknown to VT), total, label}. Cached for ``max_age_days``."""
         c = self.cache.get(sha256)
         if c and time.time() - c.get("ts", 0) < max_age_days * 86400:
             return c
@@ -81,6 +95,7 @@ class VirusTotal:
 
 
 def confirm_upload(desc: str, assume_yes: bool) -> bool:
+    """Explain what an upload means and require typing UPLOAD (or ``--yes``). Refuses on non-TTY stdin."""
     print("\n" + "=" * 70)
     print("You asked to UPLOAD a file to VirusTotal:\n  " + desc)
     print("Uploaded files are shared with security vendors and downloadable by VirusTotal premium users.")
@@ -93,3 +108,37 @@ def confirm_upload(desc: str, assume_yes: bool) -> bool:
         print("Not an interactive terminal: refusing to upload without --yes.")
         return False
     return input("Type UPLOAD to confirm: ").strip() == "UPLOAD"
+
+
+@analyzer("virustotal", 30, "VirusTotal", "hash lookups of user/sideloaded APKs (cached, rate limited)")
+def run_vt(ctx: Context) -> None:
+    """Reuse DroidSentinel's verdicts, then look up the remaining hashes if an API key is set."""
+    rep = ctx.ev.json("sentinel/report.json") or {}
+    for v in (rep.get("monitor") or {}).get("virustotal", []):
+        if v.get("sha256") and v.get("positives", -1) >= 0:
+            ctx.vt[v["sha256"]] = {"malicious": v["positives"], "total": v.get("total", 0), "label": v.get("label"), "source": "sentinel"}
+    if not ctx.opt.vt_key:
+        ctx.coverage["virustotal"] = "skipped – no API key (--vt-key or VT_API_KEY)" + (f"; {len(ctx.vt)} verdicts from DroidSentinel" if ctx.vt else "")
+        return
+    todo = []
+    for name, p in ctx.packages.items():
+        h = p.get("apkSha256")
+        if not h:
+            continue
+        side = ctx.is_sideloaded(name)
+        if ctx.opt.vt_scope == "all" or (ctx.opt.vt_scope == "user" and not p.get("system")) or side:
+            todo.append((0 if side else 1, name, h))      # sideloaded first
+    todo = sorted(todo)[: ctx.opt.vt_max]
+    client = VirusTotal(ctx.opt.vt_key)
+    uncached = sum(1 for _, _, h in todo if h not in client.cache)
+    console.info(f"VirusTotal: {len(todo)} hashes, {uncached} not cached (≈{uncached * SPACING / 60:.0f} min on the free tier)")
+    n = 0
+    try:
+        for _, _, h in todo:
+            r = client.lookup(h)
+            if r:
+                ctx.vt[h] = r
+                n += 1
+    except RuntimeError as e:
+        console.warn(f"VirusTotal stopped: {e}")
+    ctx.coverage["virustotal"] = f"ok – {n} hashes looked up (hash only, nothing uploaded)"

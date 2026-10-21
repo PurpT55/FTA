@@ -5,7 +5,8 @@ import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from .model import Context, Finding
+from .model import Context, Finding, utcnow
+from .registry import analyzer
 
 PRIVACY_WEIGHTS = {
     "android.permission.ACCESS_BACKGROUND_LOCATION": 12, "android.permission.ACCESS_FINE_LOCATION": 8,
@@ -47,6 +48,7 @@ def _from_collector(items: list[dict]) -> dict[str, dict]:
 
 
 def parse_dumpsys_package(text: str) -> dict[str, dict]:
+    """Rebuild package records from ``dumpsys package`` (adb path): uid, versions, flags, installer, install times, requested/granted permissions."""
     out: dict[str, dict] = {}
     cur = None
     mode = None
@@ -116,7 +118,9 @@ def parse_dumpsys_package(text: str) -> dict[str, dict]:
     return out
 
 
+@analyzer("inventory", 10, "Package inventory", "packages.json (DroidCollector) or dumpsys package + pm list (adb)")
 def load_packages(ctx: Context) -> None:
+    """Fill ``ctx.packages`` with one normalised record per package."""
     ev = ctx.ev
     items = ev.json("packages/packages.json")
     if items:
@@ -163,11 +167,14 @@ def _parse_time(s):
 
 
 def services_with(p, perm):
+    """Services of a package protected by the given bind permission."""
     return [c for c in p.get("components", []) if c.get("type") == "service" and c.get("permission") == perm]
 
 
 # --------------------------------------------------------------------------- rules
+@analyzer("packages", 60, "Package rules", "IOC, signer, roles, masquerading, hidden apps, capability profile, install bursts")
 def analyse_packages(ctx: Context) -> None:
+    """Per-package detections. Needs inventory, device/dumpsys roles and VirusTotal verdicts."""
     pk = ctx.packages
     en = ctx.enabled
     iocs = ctx.iocs
@@ -182,7 +189,7 @@ def analyse_packages(ctx: Context) -> None:
     ime = (en["ime"] or "").split("/")[0]
     overlay = set(ctx.device.get("overlayGranted", []))
     installers_allowed = set(ctx.device.get("installSourcesAllowed", []))
-    now = datetime.utcnow()
+    now = utcnow()
 
     def add(fid, sev, cat, title, pkg, detail="", mitre=None, evidence=None):
         ctx.add(Finding(fid, sev, cat, title, detail, pkg, mitre, "packages", evidence or []))
@@ -315,6 +322,7 @@ def analyse_packages(ctx: Context) -> None:
 
 
 def scores(ctx: Context) -> dict[str, dict]:
+    """Per-package privacy score (weighted permissions + roles) and security score (sum of non-privacy finding weights)."""
     from .model import WEIGHT
     acc = {c.split("/")[0] for c in ctx.enabled["accessibility"]}
     nls = {c.split("/")[0] for c in ctx.enabled["notification"]}

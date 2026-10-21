@@ -90,6 +90,7 @@ def parse_axml(buf: bytes) -> list[tuple[int, str, dict]]:
 
 
 def manifest_info(axml: bytes) -> dict:
+    """Decode a binary AndroidManifest.xml into package, permissions, sdk, application flags and components (with intent filters)."""
     elems = parse_axml(axml)
     m = {"package": None, "permissions": [], "components": [], "application": {}, "sdk": {}}
     stack: list[dict] = []
@@ -147,6 +148,7 @@ def _uleb(b: bytes, p: int) -> tuple[int, int]:
 
 
 def dex_strings(dex: bytes, cap: int = 400_000) -> list[str]:
+    """Return the string table of a DEX file (class/method names and literals), capped at ``cap`` entries."""
     if len(dex) < 0x70 or not dex.startswith(b"dex\n"):
         return []
     size, off = struct.unpack_from("<II", dex, 0x38)
@@ -310,6 +312,7 @@ COMPRESSED_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp3", ".mp4", ".og
 
 
 def entropy(b: bytes) -> float:
+    """Shannon entropy in bits/byte (8.0 = random/encrypted)."""
     if not b:
         return 0.0
     c = Counter(b)
@@ -330,8 +333,7 @@ def analyse_apk(data: bytes, name: str = "") -> dict:
     names = z.namelist()
 
     def f(i, sev, cat, title, mitre=None, ev=None):
-        rep["findings"].append({"id": "apk." + i, "severity": sev, "category": cat, "title": title,
-                                "mitre": mitre, "evidence": ev or []})
+        rep["findings"].append(_finding(i, sev, cat, title, mitre, ev))
 
     # Manifest
     try:
@@ -363,33 +365,9 @@ def analyse_apk(data: bytes, name: str = "") -> dict:
             rep["dex_count"] += 1
             rep["dex_bytes"] += len(d)
             strings.extend(dex_strings(d))
-    blob = "\n".join(strings)
-    sset = set(strings)
-    for rid, needles, sev, cat, title, mitre in API_RULES:
-        if all((nd[1:] in sset) if nd.startswith("=") else (nd in blob) for nd in needles):
-            f(rid, sev, cat, title, mitre)
-    rep["trackers"] = sorted({v for k, v in TRACKERS.items() if k in blob})
-    for k, v in PACKER_CLASSES.items():
-        if k in blob:
-            f("packer.class", "MEDIUM", "SUSPICIOUS", f"Packed with {v}", "T1406.002", [k])
-    hosts = Counter()
-    for u in URL_RE.findall(blob):
-        host = u.split("/")[2].split(":")[0].lower()
-        if host.endswith(BENIGN_HOSTS) or not HOST_RE.fullmatch(host):
-            continue
-        tld = host.rsplit(".", 1)[-1]
-        if not (len(tld) == 2 or tld in GTLDS or tld.isdigit() or tld.startswith("xn--")):
-            continue
-        hosts[host] += 1
-        if len(rep["urls"]) < 300 and u not in rep["urls"]:
-            rep["urls"].append(u)
-    rep["hosts"] = [h for h, _ in hosts.most_common(200)]
-    ips = {ip for ip in IP_RE.findall(blob) if not ip.startswith(("0.", "127.", "255.", "1.0.", "2.0.", "10.0.0.0"))
-           and not re.match(r"^\d+\.0\.0\.0$", ip)}
-    rep["ips"] = sorted(ips)[:100]
-    if any(u.startswith("http://") and IP_RE.match(u[7:].split("/")[0].split(":")[0]) for u in rep["urls"]):
-        f("http.ip", "MEDIUM", "SUSPICIOUS", "Hard-coded http:// URL to a raw IP address (typical C2)", "T1437.001",
-          [u for u in rep["urls"] if IP_RE.match(u[7:].split("/")[0].split(":")[0])][:5])
+    found, extracted = code_findings(strings)
+    rep["findings"] += found
+    rep.update(extracted)
 
     # Native libs, embedded payloads, encrypted assets
     small_dex = rep["dex_bytes"] < 150_000
@@ -427,24 +405,75 @@ def analyse_apk(data: bytes, name: str = "") -> dict:
                 if small_dex:
                     f("encrypted", "HIGH", "SUSPICIOUS", f"Tiny DEX + large encrypted asset ({n}): packed/dropper", "T1406.002", [n])
 
-    # Manifest-based rules
-    m = rep["manifest"] or {}
+    rep["findings"] += manifest_findings(rep["manifest"] or {})
+    return rep
+
+
+def _finding(rid, sev, cat, title, mitre=None, ev=None) -> dict:
+    return {"id": "apk." + rid, "severity": sev, "category": cat, "title": title, "mitre": mitre, "evidence": ev or []}
+
+
+def code_findings(strings: list[str]) -> tuple[list[dict], dict]:
+    """Rules over DEX strings. Returns (findings, {"trackers", "urls", "hosts", "ips"}).
+
+    Pure function of the string list, so rules can be unit-tested without any APK.
+    """
+    out: list[dict] = []
+    blob = "\n".join(strings)
+    sset = set(strings)
+    for rid, needles, sev, cat, title, mitre in API_RULES:
+        if all((nd[1:] in sset) if nd.startswith("=") else (nd in blob) for nd in needles):
+            out.append(_finding(rid, sev, cat, title, mitre))
+    trackers = sorted({v for k, v in TRACKERS.items() if k in blob})
+    for k, v in PACKER_CLASSES.items():
+        if k in blob:
+            out.append(_finding("packer.class", "MEDIUM", "SUSPICIOUS", f"Packed with {v}", "T1406.002", [k]))
+    hosts: Counter = Counter()
+    urls: list[str] = []
+    for u in URL_RE.findall(blob):
+        host = u.split("/")[2].split(":")[0].lower()
+        if host.endswith(BENIGN_HOSTS) or not HOST_RE.fullmatch(host):
+            continue
+        tld = host.rsplit(".", 1)[-1]
+        if not (len(tld) == 2 or tld in GTLDS or tld.isdigit() or tld.startswith("xn--")):
+            continue
+        hosts[host] += 1
+        if len(urls) < 300 and u not in urls:
+            urls.append(u)
+    ips = {ip for ip in IP_RE.findall(blob) if not ip.startswith(("0.", "127.", "255.", "1.0.", "2.0.", "10.0.0.0"))
+           and not re.match(r"^\d+\.0\.0\.0$", ip)}
+    raw_ip_urls = [u for u in urls if u.startswith("http://") and IP_RE.fullmatch(u[7:].split("/")[0].split(":")[0])]
+    if raw_ip_urls:
+        out.append(_finding("http.ip", "MEDIUM", "SUSPICIOUS", "Hard-coded http:// URL to a raw IP address (typical C2)",
+                            "T1437.001", raw_ip_urls[:5]))
+    return out, {"trackers": trackers, "urls": urls, "hosts": [h for h, _ in hosts.most_common(200)], "ips": sorted(ips)[:100]}
+
+
+#: (id, any-of actions, severity, category, title, mitre) for intent-filter rules; SMS priority is special-cased.
+MANIFEST_RULES = [
+    ("call.monitor", {"android.intent.action.NEW_OUTGOING_CALL", "android.intent.action.PHONE_STATE"}, "LOW", "PRIVACY",
+     "Monitors phone calls (PHONE_STATE / NEW_OUTGOING_CALL receiver)", "T1616"),
+    ("boot", {"android.intent.action.BOOT_COMPLETED"}, "INFO", "SUSPICIOUS", "Starts at boot (BOOT_COMPLETED receiver)", "T1624.001"),
+    ("admin.decl", {"android.app.action.DEVICE_ADMIN_ENABLED"}, "LOW", "SECURITY", "Declares a device administrator", "T1626.001"),
+    ("acc.decl", {"android.accessibilityservice.AccessibilityService"}, "LOW", "PRIVACY", "Declares an accessibility service", "T1516"),
+    ("secret.code", {"android.provider.Telephony.SECRET_CODE", "android.telephony.action.SECRET_CODE"}, "MEDIUM", "SUSPICIOUS",
+     "Reacts to dialer secret codes (hidden-app re-launch trick)", "T1628.001"),
+]
+
+
+def manifest_findings(m: dict) -> list[dict]:
+    """Rules over a decoded manifest (output of :func:`manifest_info`). Pure function of the dict."""
+    out: list[dict] = []
     for c in m.get("components", []):
         for flt in c.get("filters", []):
-            acts = flt.get("actions", [])
+            acts = set(flt.get("actions", []))
             prio = flt.get("priority") or 0
             if "android.provider.Telephony.SMS_RECEIVED" in acts and isinstance(prio, int) and prio >= 999:
-                f("sms.intercept", "HIGH", "SECURITY", f"SMS receiver with maximum priority ({prio}): SMS interception", "T1636.004", [c["name"]])
-            if "android.intent.action.NEW_OUTGOING_CALL" in acts or "android.intent.action.PHONE_STATE" in acts:
-                f("call.monitor", "LOW", "PRIVACY", "Monitors phone calls (PHONE_STATE / NEW_OUTGOING_CALL receiver)", "T1616", [c["name"]])
-            if "android.intent.action.BOOT_COMPLETED" in acts:
-                f("boot", "INFO", "SUSPICIOUS", "Starts at boot (BOOT_COMPLETED receiver)", "T1624.001", [c["name"]])
-            if "android.app.action.DEVICE_ADMIN_ENABLED" in acts:
-                f("admin.decl", "LOW", "SECURITY", "Declares a device administrator", "T1626.001", [c["name"]])
-            if "android.accessibilityservice.AccessibilityService" in acts:
-                f("acc.decl", "LOW", "PRIVACY", "Declares an accessibility service", "T1516", [c["name"]])
-            if "android.provider.Telephony.SECRET_CODE" in acts or "android.telephony.action.SECRET_CODE" in acts:
-                f("secret.code", "MEDIUM", "SUSPICIOUS", "Reacts to dialer secret codes (hidden-app re-launch trick)", "T1628.001", [c["name"]])
-    if m.get("application", {}).get("debuggable") is True:
-        f("debuggable", "LOW", "SECURITY", "android:debuggable=true")
-    return rep
+                out.append(_finding("sms.intercept", "HIGH", "SECURITY", f"SMS receiver with maximum priority ({prio}): SMS interception",
+                                    "T1636.004", [c.get("name")]))
+            for rid, actions, sev, cat, title, mitre in MANIFEST_RULES:
+                if acts & actions:
+                    out.append(_finding(rid, sev, cat, title, mitre, [c.get("name")]))
+    if (m.get("application") or {}).get("debuggable") is True:
+        out.append(_finding("debuggable", "LOW", "SECURITY", "android:debuggable=true"))
+    return out

@@ -38,6 +38,7 @@ PLAYBOOK = [
 
 
 def advice(fid: str) -> str:
+    """Next-step advice for a finding id (first matching prefix), or ''."""
     for prefix, text in PLAYBOOK:
         if fid.startswith(prefix):
             return text

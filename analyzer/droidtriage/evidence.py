@@ -9,6 +9,7 @@ import zipfile
 
 
 class Evidence:
+    """Read-only view over a zip or folder with forward-slash relative names (a single wrapping folder in a zip is stripped)."""
     def __init__(self, path: str):
         self.path = path
         self._zip = None
@@ -39,31 +40,38 @@ class Evidence:
 
     # ------------------------------------------------------------------ queries
     def names(self, pattern: str = "*") -> list[str]:
+        """Entry names matching a glob pattern (``fnmatch``: ``*`` also crosses ``/``)."""
         return [n for n in self._names if fnmatch.fnmatch(n, pattern)]
 
     def has(self, name: str) -> bool:
+        """True if the entry exists."""
         return name in self._names
 
     def size(self, name: str) -> int:
+        """Uncompressed size in bytes."""
         if self.kind == "zip":
             return self._zip.getinfo(self._prefix + name).file_size
         return os.path.getsize(os.path.join(self.path, name))
 
     def open(self, name: str):
+        """Binary file object for an entry."""
         if self.kind == "zip":
             return self._zip.open(self._prefix + name)
         return open(os.path.join(self.path, name), "rb")
 
     def read(self, name: str, limit: int | None = None) -> bytes:
+        """Entry bytes (optionally only the first ``limit`` bytes)."""
         with self.open(name) as f:
             return f.read(limit) if limit else f.read()
 
     def text(self, name: str, default: str = "") -> str:
+        """Entry decoded as UTF-8 (errors replaced), or ``default`` if missing."""
         if not self.has(name):
             return default
         return self.read(name).decode("utf-8", "replace")
 
     def json(self, name: str, default=None):
+        """Entry parsed as JSON, or ``default`` if missing/invalid."""
         if not self.has(name):
             return default
         try:
@@ -75,11 +83,12 @@ class Evidence:
         """Streams text lines (logcat files can be hundreds of MB)."""
         if not self.has(name):
             return
-        with self.open(name) as f:
-            for raw in io.TextIOWrapper(f, encoding="utf-8", errors="replace"):
+        with self.open(name) as f, io.TextIOWrapper(f, encoding="utf-8", errors="replace") as text:
+            for raw in text:
                 yield raw.rstrip("\n")
 
     def first(self, *names: str) -> str | None:
+        """First existing name among candidates (collector vs adb_collect layouts)."""
         for n in names:
             if self.has(n):
                 return n

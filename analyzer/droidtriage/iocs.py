@@ -10,8 +10,9 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
 import urllib.request
+
+from .console import console
 
 ECHAP_URL = "https://raw.githubusercontent.com/AssoEchap/stalkerware-indicators/master/ioc.yaml"
 MVT_INDEX = "https://raw.githubusercontent.com/mvt-project/mvt-indicators/main/indicators.yaml"
@@ -19,6 +20,7 @@ IPV4 = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
 
 
 class IocDb:
+    """In-memory indicator sets; values map to the family name used in findings."""
     def __init__(self):
         self.packages: dict[str, str] = {}
         self.cert_sha1: dict[str, str] = {}
@@ -32,6 +34,7 @@ class IocDb:
 
     # ------------------------------------------------------------------ loading
     def load_path(self, path: str) -> None:
+        """Load a file or every file of a folder, by extension (.yaml/.yml, .stix2/.json, .txt)."""
         if os.path.isdir(path):
             for f in sorted(os.listdir(path)):
                 self.load_path(os.path.join(path, f))
@@ -134,6 +137,7 @@ class IocDb:
 
     # ------------------------------------------------------------------ matching
     def match_domain(self, domain: str) -> str | None:
+        """Return the family if ``domain`` or any parent domain is an indicator."""
         d = domain.lower().rstrip(".")
         while d:
             if d in self.domains:
@@ -149,7 +153,7 @@ def update(dest: str) -> None:
     os.makedirs(dest, exist_ok=True)
 
     def fetch(url, name):
-        print(f"  downloading {url}")
+        console.info(f"downloading {url}")
         try:
             with urllib.request.urlopen(url, timeout=60) as r:
                 data = r.read()
@@ -157,7 +161,7 @@ def update(dest: str) -> None:
                 fh.write(data)
             return data.decode("utf-8", "replace")
         except Exception as e:  # noqa: BLE001
-            print(f"  ! failed: {e}", file=sys.stderr)
+            console.warn(f"failed: {url}: {e}")
             return ""
 
     fetch(ECHAP_URL, "stalkerware-indicators.yaml")

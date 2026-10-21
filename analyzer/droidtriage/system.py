@@ -5,7 +5,8 @@ import re
 from collections import Counter, defaultdict
 from datetime import datetime
 
-from .model import Context, Finding
+from .model import Context, Finding, utcnow
+from .registry import analyzer
 
 COMP = re.compile(r"([a-zA-Z][\w.]*\.[\w]+)/((?:[\w.$]+))")
 
@@ -35,7 +36,9 @@ def _settings(ctx: Context) -> dict[str, dict[str, str]]:
     return out
 
 
+@analyzer("device", 40, "Device posture", "getprop, settings, device_state: boot, root, patch, CA, proxy, ADB")
 def analyse_device(ctx: Context) -> None:
+    """Device-wide security posture; also seeds ``ctx.enabled`` from settings."""
     props = _props(ctx)
     st = _settings(ctx)
     state = ctx.ev.json("device/device_state.json", {}) or {}
@@ -92,7 +95,7 @@ def analyse_device(ctx: Context) -> None:
     patch = props.get("ro.build.version.security_patch")
     if patch:
         try:
-            age = (datetime.utcnow() - datetime.strptime(patch, "%Y-%m-%d")).days
+            age = (utcnow() - datetime.strptime(patch, "%Y-%m-%d")).days
             if age > 365:
                 add("dev.patch", "HIGH", "SECURITY", f"Security patch {patch} is {age} days old", mitre="T1404")
             elif age > 90:
@@ -145,7 +148,9 @@ def _denied(text):
     return (not text) or text.lstrip().startswith(("Permission Denial", "Can't find service")) or len(text) < 40
 
 
+@analyzer("dumpsys", 50, "dumpsys services", "accessibility, admins, owner, roles, appops, jobs, alarms, dropbox, adb keys")
 def analyse_dumpsys(ctx: Context) -> None:
+    """Parse dumpsys outputs; refines ``ctx.enabled`` and ``ctx.device``."""
     got = [n for n in ctx.ev.names("dumpsys/*.txt") if not _denied(ctx.ev.text(n)[:200])]
     ctx.coverage["dumpsys"] = f"ok – {len(got)} services" if got else "MISSING – grant DUMP to the Collector or use tools/adb_collect.sh"
     if not got:
