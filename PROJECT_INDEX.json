@@ -1,7 +1,7 @@
 {
  "schema": "fta-project-index/1",
- "generated_at": "2026-10-21T20:18:37Z",
- "source_tree_hash": "883e5b3fdcbe8f3e",
+ "generated_at": "2026-10-21T20:22:09Z",
+ "source_tree_hash": "49127c8a2fa2a1bd",
  "how_to_use": "Curated sections come from tools/index_meta.json; files/rules/cli/tests are extracted from code by tools/gen_index.py. Regenerate after any change; CI runs --check.",
  "project": {
   "name": "FTA – Forensic Triage for Android",
@@ -31,9 +31,9 @@
    "bash": 613,
    "gradle-kotlin": 173,
    "html": 252,
-   "json": 243,
+   "json": 247,
    "kotlin": 3557,
-   "markdown": 887,
+   "markdown": 893,
    "properties": 12,
    "python": 4486,
    "text": 4,
@@ -147,9 +147,9 @@
     "kotlin": "1.9.24"
    },
    "maturity": {
-    "level": "beta",
+    "level": "stable",
     "tested": "tools/tests/test_setup.py (11 cases via --plan: Debian JRE-only/JDK, 7 distro families, SDK resolution, check exit codes, build.sh Java guard); shellcheck clean",
-    "real_runs": "Ubuntu 24.04: apt install of openjdk-17-jdk-headless and pinned Temurin download+checksum verified; Android SDK download not reachable from the dev sandbox -> covered by the CI setup-linux matrix (debian:12, ubuntu:24.04, fedora:41, archlinux)",
+    "real_runs": "CI run 39669189789: ./setup.sh -y --accept-licenses from bare debian:12, ubuntu:24.04, fedora:41 and archlinux containers (JDK 17 install, cmdline-tools download + SHA-256, SDK packages, keystore, Python + Gradle tests, release APKs into dist/). Locally on Ubuntu 24.04: apt JDK path and pinned Temurin download + checksum.",
     "notes": "x86_64 only (Google's Linux build-tools); Alpine unsupported."
    }
   },
@@ -1894,6 +1894,10 @@
   {
    "phase": "v1.2 setup",
    "summary": "setup.sh + tools/build.sh: distro detection, JDK 17 resolution (JRE-only installs detected), pinned Android SDK with checksum, local.properties/.fta-env, dist/ with SHA256SUMS + BUILD_INFO; Gradle wrapper checksum; CI builds from scratch on 4 distributions. Fixed a pipefail+grep -q false negative found by a real apt run."
+  },
+  {
+   "phase": "v1.2 setup CI",
+   "summary": "setup.sh verified end-to-end on Debian 12, Ubuntu 24.04, Fedora 41 and Arch; pinned cmdline-tools and Gradle checksums confirmed by real downloads. Fixed: tests reading the repo's real local.properties after setup (FTA_LOCAL_PROPERTIES), shellcheck 0.9 compatibility, CI failure annotations."
   }
  ],
  "files": [
@@ -1921,8 +1925,8 @@
   {
    "path": ".claude/skills/fta-verify-without-sdk/SKILL.md",
    "language": "markdown",
-   "lines": 63,
-   "sha256": "3a11eeca662d42d9",
+   "lines": 69,
+   "sha256": "8d3cd1c190bad987",
    "summary": "Build, test and verify this repo in a restricted sandbox (no Android SDK, dl.google.com blocked, Maven Central rate limits, no device). Use before committing changes to android/ or analyzer/, when a G"
   },
   {
@@ -2502,8 +2506,8 @@
   {
    "path": "tools/index_meta.json",
    "language": "json",
-   "lines": 243,
-   "sha256": "da580f8064e2acfc",
+   "lines": 247,
+   "sha256": "f40c10518b97b17e",
    "summary": "Curated metadata merged into PROJECT_INDEX.json by tools/gen_index.py"
   },
   {

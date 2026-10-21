@@ -56,6 +56,12 @@ const { chromium } = require('/opt/node-tools/node_modules/playwright');   // gl
   symlinks. **`cmd | grep -q` under `set -o pipefail` can report "not found"** (grep exits early, cmd gets SIGPIPE):
   capture into a variable first. A real `apt` run caught exactly this in `pkg_available`.
 - `tools/build.sh` refuses any JAVA_HOME that isn't a JDK 17 and records the toolchain in `dist/BUILD_INFO.txt`.
+- Tests must not read machine state: after `setup.sh` the repo has a real `android/local.properties`, and
+  `.fta-env` exports `JAVA_HOME`/`ANDROID_HOME`. The setup tests override every input (`FTA_LOCAL_PROPERTIES`, …).
+- CI logs may be unreadable from a sandbox (blob storage blocked). Scripts emit `::error` annotations
+  (`die` + ERR trap). Read them with `gh api repos/OWNER/REPO/check-runs/<job_id>/annotations`, and get job ids from
+  `gh api repos/OWNER/REPO/actions/runs/<run_id>/jobs`.
+- CI's shellcheck is older than pip's: validate with `pip install shellcheck-py==0.9.0.6` too.
 
 ## Before committing
 1. Python tests (analyzer + tools/tests) + `tools/kotlin_check.sh` green; `shellcheck setup.sh tools/*.sh` clean.

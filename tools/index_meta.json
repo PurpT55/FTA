@@ -124,9 +124,9 @@
         "kotlin": "1.9.24"
       },
       "maturity": {
-        "level": "beta",
+        "level": "stable",
         "tested": "tools/tests/test_setup.py (11 cases via --plan: Debian JRE-only/JDK, 7 distro families, SDK resolution, check exit codes, build.sh Java guard); shellcheck clean",
-        "real_runs": "Ubuntu 24.04: apt install of openjdk-17-jdk-headless and pinned Temurin download+checksum verified; Android SDK download not reachable from the dev sandbox -> covered by the CI setup-linux matrix (debian:12, ubuntu:24.04, fedora:41, archlinux)",
+        "real_runs": "CI run 39669189789: ./setup.sh -y --accept-licenses from bare debian:12, ubuntu:24.04, fedora:41 and archlinux containers (JDK 17 install, cmdline-tools download + SHA-256, SDK packages, keystore, Python + Gradle tests, release APKs into dist/). Locally on Ubuntu 24.04: apt JDK path and pinned Temurin download + checksum.",
         "notes": "x86_64 only (Google's Linux build-tools); Alpine unsupported."
       }
     },
@@ -209,6 +209,10 @@
     {
       "phase": "v1.2 setup",
       "summary": "setup.sh + tools/build.sh: distro detection, JDK 17 resolution (JRE-only installs detected), pinned Android SDK with checksum, local.properties/.fta-env, dist/ with SHA256SUMS + BUILD_INFO; Gradle wrapper checksum; CI builds from scratch on 4 distributions. Fixed a pipefail+grep -q false negative found by a real apt run."
+    },
+    {
+      "phase": "v1.2 setup CI",
+      "summary": "setup.sh verified end-to-end on Debian 12, Ubuntu 24.04, Fedora 41 and Arch; pinned cmdline-tools and Gradle checksums confirmed by real downloads. Fixed: tests reading the repo's real local.properties after setup (FTA_LOCAL_PROPERTIES), shellcheck 0.9 compatibility, CI failure annotations."
     }
   ],
   "known_limitations": [
