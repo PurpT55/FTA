@@ -1,0 +1,4 @@
+# Example custom IOC list (all lines below are commented out).
+# package:com.example.badapp
+# domain:evil.example
+# sha256:0000000000000000000000000000000000000000000000000000000000000000

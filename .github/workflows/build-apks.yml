@@ -1,0 +1,44 @@
+name: Build APKs
+
+on:
+  push:
+    paths: ["android/**", ".github/workflows/build-apks.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Signing key (repository secret or throw-away)
+        env:
+          KEYSTORE_B64: ${{ secrets.SUITE_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android/suite.keystore
+          else
+            ./tools/make_keystore.sh
+          fi
+      - name: Build
+        working-directory: android
+        env:
+          SUITE_KEYSTORE_PASSWORD: ${{ secrets.SUITE_KEYSTORE_PASSWORD }}
+          SUITE_KEY_ALIAS: ${{ secrets.SUITE_KEY_ALIAS }}
+          SUITE_KEY_PASSWORD: ${{ secrets.SUITE_KEY_PASSWORD }}
+        run: |
+          # empty secrets must not override the defaults of make_keystore.sh
+          [ -z "$SUITE_KEYSTORE_PASSWORD" ] && unset SUITE_KEYSTORE_PASSWORD SUITE_KEY_ALIAS SUITE_KEY_PASSWORD
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          mkdir -p ../out
+          cp sentinel/build/outputs/apk/release/*.apk ../out/DroidSentinel.apk
+          cp collector/build/outputs/apk/release/*.apk ../out/DroidCollector.apk
+          sha256sum ../out/*.apk | tee ../out/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droid-forensics-apks
+          path: out/

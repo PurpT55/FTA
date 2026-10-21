@@ -1,0 +1,10 @@
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/suite.keystore
+*.apk
+__pycache__/
+*.pyc
+out/
+*.zip
