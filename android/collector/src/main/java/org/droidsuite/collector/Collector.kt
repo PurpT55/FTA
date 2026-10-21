@@ -14,6 +14,7 @@ import android.provider.Settings
 import android.util.Base64
 import org.droidsuite.core.AppRecord
 import org.droidsuite.core.DeviceProbe
+import org.droidsuite.core.HashPolicy
 import org.droidsuite.core.Inventory
 import org.droidsuite.core.IocDb
 import org.droidsuite.core.RiskEngine
@@ -31,6 +32,7 @@ import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
+/** Selectable parts of a collection; [default] = pre-ticked in the UI. */
 enum class Section(val title: String, val detail: String, val default: Boolean) {
     DEVICE("Device & security settings", "build props, settings, CA certificates, network config, accounts list", true),
     PACKAGES("App inventory", "every package: version, installer, signer, permissions, components, APK hashes", true),
@@ -115,7 +117,12 @@ class Collector(
         var apps: List<AppRecord> = emptyList()
         if (Section.PACKAGES in sections || sections.any { it.name.startsWith("APKS") }) {
             progress("Inventorying packages (hashing APKs)…")
-            apps = Inventory(ctx).scan(Section.PACKAGES in sections) { i, n -> if (i % 20 == 0) progress("Inventory $i/$n") }
+            val policy = when {
+                Section.PACKAGES !in sections -> HashPolicy.NONE
+                Section.APKS_ALL_SYSTEM in sections -> HashPolicy.ALL
+                else -> HashPolicy.USER_AND_UPDATED
+            }
+            apps = Inventory(ctx).scan(policy) { i, n -> if (i % 20 == 0) progress("Inventory $i/$n") }
         }
         if (Section.DEVICE in sections) device()
         if (Section.PACKAGES in sections) packages(apps)
@@ -324,6 +331,7 @@ class Collector(
     }
 }
 
+/** Which optional, adb-granted capabilities the Collector currently holds (shown in the UI and manifest.json). */
 fun capabilities(ctx: Context): JSONObject = JSONObject()
     .put("READ_LOGS", ctx.checkSelfPermission("android.permission.READ_LOGS") == PackageManager.PERMISSION_GRANTED)
     .put("DUMP", ctx.checkSelfPermission("android.permission.DUMP") == PackageManager.PERMISSION_GRANTED)

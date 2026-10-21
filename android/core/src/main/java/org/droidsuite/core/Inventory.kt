@@ -14,9 +14,26 @@ import java.io.File
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 
+/** Which APKs get a SHA-256 during a scan. Hashing every system APK costs minutes on first run. */
+enum class HashPolicy {
+    /** Never hash (fast inventory). */
+    NONE,
+    /** User apps + updated system apps: everything that can change after the factory image. Default. */
+    USER_AND_UPDATED,
+    /** Every package, including read-only system APKs (Collector "all system APKs"). */
+    ALL;
+
+    fun applies(system: Boolean, updatedSystem: Boolean): Boolean = when (this) {
+        NONE -> false
+        ALL -> true
+        USER_AND_UPDATED -> !system || updatedSystem
+    }
+}
+
 /**
  * Enumerates installed packages through the public PackageManager API.
  * Requires QUERY_ALL_PACKAGES on Android 11+ to see everything.
+ * APK hashes are cached in `files/apk_hash_cache.json` keyed by path|size|mtime.
  */
 class Inventory(private val ctx: Context) {
     private val pm: PackageManager = ctx.packageManager
@@ -44,22 +61,23 @@ class Inventory(private val ctx: Context) {
             .map { it.activityInfo.packageName }.toSet()
     }
 
-    /** Full scan. [hashApks] computes SHA-256 of base.apk (cached by path+size+mtime). */
-    fun scan(hashApks: Boolean = true, progress: ((Int, Int) -> Unit)? = null): List<AppRecord> {
+    /** Full scan; [policy] decides which base.apk files are hashed (cached hashes are always reused). */
+    fun scan(policy: HashPolicy = HashPolicy.USER_AND_UPDATED, progress: ((Int, Int) -> Unit)? = null): List<AppRecord> {
         val names = packageNames()
         val launchers = launcherPackages()
         val out = ArrayList<AppRecord>(names.size)
         names.forEachIndexed { idx, name ->
             progress?.invoke(idx, names.size)
-            record(name, launchers, hashApks)?.let { out.add(it) }
+            record(name, launchers, policy)?.let { out.add(it) }
         }
-        if (hashApks) saveHashCache()
+        if (policy != HashPolicy.NONE) saveHashCache()
         return out
     }
 
-    fun single(pkg: String, hashApk: Boolean = true): AppRecord? {
-        val r = record(pkg, launcherPackages(), hashApk)
-        if (hashApk) saveHashCache()
+    /** Re-read one package (e.g. after a PACKAGE_REPLACED broadcast). */
+    fun single(pkg: String, policy: HashPolicy = HashPolicy.USER_AND_UPDATED): AppRecord? {
+        val r = record(pkg, launcherPackages(), policy)
+        if (policy != HashPolicy.NONE) saveHashCache()
         return r
     }
 
@@ -75,7 +93,7 @@ class Inventory(private val ctx: Context) {
         }
     }
 
-    private fun record(pkg: String, launchers: Set<String>, hashApk: Boolean): AppRecord? {
+    private fun record(pkg: String, launchers: Set<String>, policy: HashPolicy): AppRecord? {
         val pi = info(pkg) ?: return null
         val ai = pi.applicationInfo ?: return null
         val (installer, initiating) = installers(pkg)
@@ -113,7 +131,9 @@ class Inventory(private val ctx: Context) {
         val versionCode = if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode else {
             @Suppress("DEPRECATION") pi.versionCode.toLong()
         }
-        val sha = if (hashApk) hashCached(ai.sourceDir) else cachedOnly(ai.sourceDir)
+        val isSystem = ai.flags and ApplicationInfo.FLAG_SYSTEM != 0
+        val isUpdated = ai.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP != 0
+        val sha = if (policy.applies(isSystem, isUpdated)) hashCached(ai.sourceDir) else cachedOnly(ai.sourceDir)
         return AppRecord(
             pkg = pkg,
             label = try { ai.loadLabel(pm).toString() } catch (_: Exception) { pkg },
@@ -124,8 +144,8 @@ class Inventory(private val ctx: Context) {
             initiatingInstaller = initiating,
             firstInstall = pi.firstInstallTime,
             lastUpdate = pi.lastUpdateTime,
-            system = ai.flags and ApplicationInfo.FLAG_SYSTEM != 0,
-            updatedSystem = ai.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP != 0,
+            system = isSystem,
+            updatedSystem = isUpdated,
             enabled = ai.enabled,
             hasLauncher = pkg in launchers,
             debuggable = ai.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0,

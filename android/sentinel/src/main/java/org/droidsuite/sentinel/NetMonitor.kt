@@ -46,7 +46,8 @@ class NetMonitor(private val ctx: Context) {
         val screenOn = ctx.getSystemService(PowerManager::class.java).isInteractive
         val cur = totals()
         if (!primed) { prev.putAll(cur); primed = true; return }
-        val last = Scanner.last
+        val byPkg = Scanner.last?.apps?.associateBy { it.pkg } ?: emptyMap()
+        val trusted = store.trustedInstallers
         val thresholdTx = store.bgUploadThresholdMb * 1024L * 1024L
         for ((uid, v) in cur) {
             val p = prev[uid] ?: LongArray(2)
@@ -58,9 +59,9 @@ class NetMonitor(private val ctx: Context) {
             }
             val firstTime = !store.hasTrafficHistory(pkg)
             store.addTraffic(now, uid, pkg, maxOf(drx, 0), maxOf(dtx, 0), screenOn)
-            val app = last?.apps?.firstOrNull { pkgs?.contains(it.pkg) == true }
+            val app = pkgs?.firstNotNullOfOrNull { byPkg[it] }
             if (app == null || app.system || app.pkg in Scanner.OWN) continue
-            val sideloaded = app.installer == null || app.installer !in store.trustedInstallers
+            val sideloaded = app.installer == null || app.installer !in trusted
             if (firstTime && (sideloaded || !app.hasLauncher)) {
                 store.addEvent(Event(now, Severity.LOW, Category.UNKNOWN, app.pkg, "net.first",
                     "First network activity: ${app.label}", "rx=${drx} tx=${dtx} screenOn=$screenOn"))

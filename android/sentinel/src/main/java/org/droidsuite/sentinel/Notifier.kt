@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 
+/** Notification channels: high-importance alerts and the low-importance foreground-service status. */
 object Notifier {
     const val CH_ALERT = "alerts"
     const val CH_SERVICE = "service"

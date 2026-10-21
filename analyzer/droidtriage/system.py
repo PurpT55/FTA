@@ -121,6 +121,8 @@ def analyse_device(ctx: Context) -> None:
     if state.get("userCaCerts") or ctx.ev.names("device/ca_user/*"):
         lst = state.get("userCaCerts") or ctx.ev.names("device/ca_user/*")
         add("dev.userca", "HIGH", "SECURITY", "User-installed CA certificate(s): HTTPS interception possible", "\n".join(lst), "T1638")
+    if state.get("vpnActive"):
+        add("dev.vpn", "INFO", "PRIVACY", "A VPN was active during collection", "Make sure you know which app provides it.")
     vpn = sec.get("always_on_vpn_app")
     if vpn:
         add("dev.alwaysonvpn", "MEDIUM", "PRIVACY", f"Always-on VPN app: {vpn}", "Verify you configured it.", "T1638")

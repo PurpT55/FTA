@@ -6,6 +6,7 @@ import org.droidsuite.core.Category
 import org.droidsuite.core.DeviceProbe
 import org.droidsuite.core.DeviceState
 import org.droidsuite.core.Finding
+import org.droidsuite.core.HashPolicy
 import org.droidsuite.core.Inventory
 import org.droidsuite.core.IocDb
 import org.droidsuite.core.RiskEngine
@@ -27,7 +28,7 @@ object Scanner {
 
     fun scan(ctx: Context, progress: ((Int, Int) -> Unit)? = null): ScanResult = synchronized(lock) {
         val store = Store.get(ctx)
-        val apps = Inventory(ctx).scan(true, progress)
+        val apps = Inventory(ctx).scan(HashPolicy.USER_AND_UPDATED, progress)
         val dev = DeviceProbe(ctx).probe()
         val trusted = store.trustedInstallers
         diffBaseline(ctx, store, apps, trusted)

@@ -20,6 +20,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * DroidCollector UI: shows which capabilities are granted (READ_LOGS, DUMP, usage access, Sentinel
+ * report), lets the user pick [Section]s, asks for explicit consent, then the destination file
+ * (ACTION_CREATE_DOCUMENT), and runs [Collector] on a background thread.
+ */
 class MainActivity : Activity() {
     companion object { const val REQ_DEST = 20 }
 

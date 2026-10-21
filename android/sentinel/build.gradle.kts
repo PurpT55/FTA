@@ -41,9 +41,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    // Pure-logic tests run on the JVM; framework stubs return defaults instead of throwing.
+    testOptions { unitTests.isReturnDefaultValues = true }
     lint { abortOnError = false; checkReleaseBuilds = false }
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation(project(":core"))
 }

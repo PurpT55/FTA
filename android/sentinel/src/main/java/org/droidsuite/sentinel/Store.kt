@@ -12,15 +12,17 @@ import org.droidsuite.core.VtVerdict
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** One timeline entry (install/update, integrity change, network or DNS alert, VirusTotal result). */
 data class Event(
     val ts: Long, val severity: Severity, val category: Category, val pkg: String?,
     val type: String, val title: String, val detail: String,
 )
 
+/** One DNS query attributed to an app by the local DNS VPN; [flag] comes from [DomainIntel]. */
 data class DnsRow(val ts: Long, val pkg: String, val domain: String, val qtype: Int, val flag: String?)
 
 /** SQLite event store + preferences. All methods are thread-safe through SQLiteDatabase locking. */
-class Store private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "sentinel.db", null, 1) {
+class Store private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "sentinel.db", null, 2) {
     companion object {
         @Volatile private var inst: Store? = null
         fun get(ctx: Context): Store = inst ?: synchronized(this) {
@@ -40,9 +42,20 @@ class Store private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "sentinel.
         db.execSQL("CREATE TABLE traffic(id INTEGER PRIMARY KEY, ts INTEGER, uid INTEGER, pkg TEXT, rx INTEGER, tx INTEGER, screen_on INTEGER)")
         db.execSQL("CREATE TABLE vt(sha256 TEXT PRIMARY KEY, pkg TEXT, positives INTEGER, total INTEGER, label TEXT, ts INTEGER)")
         db.execSQL("CREATE TABLE baseline(pkg TEXT PRIMARY KEY, json TEXT)")
+        createIndexes(db)
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, o: Int, n: Int) {}
+    /** v2: the DNS monitor checks "first time this app resolves this domain" on every query and the
+     *  traffic poller checks per-package history; without these indexes both were full-table scans. */
+    private fun createIndexes(db: SQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS dns_pkg_domain ON dns(pkg, domain)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS traffic_pkg ON traffic(pkg)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS traffic_ts ON traffic(ts)")
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase, o: Int, n: Int) {
+        if (o < 2) createIndexes(db)
+    }
 
     // ---------- preferences
     var vtKey: String

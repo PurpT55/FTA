@@ -227,6 +227,10 @@ def analyse_packages(ctx: Context) -> None:
             add("sys.update.untrusted", "HIGH", "SECURITY", f"System app updated from untrusted installer {p['installer']}", name, mitre="T1645")
         if not p["system"] and any("Android Debug" in s for s in p.get("certSubjects", [])):
             add("cert.debug", "MEDIUM", "SUSPICIOUS", "Signed with the Android debug certificate", name)
+        if p.get("sharedUserId") == "android.uid.system" and not p["system"]:
+            add("uid.system", "CRITICAL", "SECURITY", "Non-system app runs as android.uid.system", name)
+        if not p["system"] and p.get("debuggable"):
+            add("app.debuggable", "LOW", "SECURITY", "App is debuggable", name)
 
         # Abusable roles
         if name in acc and not p["system"]:
@@ -252,6 +256,14 @@ def analyse_packages(ctx: Context) -> None:
             add("sms.full", "HIGH", "SECURITY", "Reads AND sends SMS without being the SMS app", name, mitre="T1636.004 / T1582")
         if side and services_with(p, "android.permission.BIND_VPN_SERVICE"):
             add("vpn.provider", "MEDIUM", "SUSPICIOUS", "Sideloaded app can act as VPN", name, mitre="T1638")
+        if side and services_with(p, "android.permission.BIND_INCALL_SERVICE"):
+            add("incall.provider", "MEDIUM", "SUSPICIOUS", "Sideloaded app implements an in-call UI", name, mitre="T1616")
+        if side and name not in acc and services_with(p, "android.permission.BIND_ACCESSIBILITY_SERVICE"):
+            add("acc.declared", "LOW", "PRIVACY", "Declares an accessibility service (not enabled)", name)
+        if side and name != ime and services_with(p, "android.permission.BIND_INPUT_METHOD"):
+            add("ime.declared", "LOW", "PRIVACY", "Sideloaded app provides a keyboard", name)
+        if name == (en.get("autofill") or "").split("/")[0] and not p["system"]:
+            add("autofill.default", "LOW", "PRIVACY", "Selected autofill service", name, "Receives the content of login forms.")
 
         # Task hijack
         for c in p.get("components", []):
@@ -259,6 +271,9 @@ def analyse_packages(ctx: Context) -> None:
             if c.get("type") == "activity" and ta and ta != name and not ta.startswith(name + ":") and not p["system"]:
                 if ta in pk:
                     add("task.hijack", "HIGH", "SECURITY", f"Activity claims task affinity of {ta} (StrandHogg)", name, c.get("name", ""), "T1417.002")
+                elif c.get("allowTaskReparenting"):
+                    add("task.reparent", "LOW", "SUSPICIOUS", "Activity with foreign taskAffinity + allowTaskReparenting", name,
+                        f"{c.get('name')} -> {ta}")
 
         # Masquerading
         if not p["system"] and side:

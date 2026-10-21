@@ -3,7 +3,10 @@ package org.droidsuite.sentinel
 import org.droidsuite.core.IocDb
 import kotlin.math.ln
 
-/** Offline heuristics for DNS names. Returns a short flag string or null. */
+/**
+ * Offline heuristics for DNS names. Returns a short flag string or null.
+ * Mirrored by analyzer/droidtriage/network.py `classify` (tests/test_parity.py checks the lists stay aligned).
+ */
 object DomainIntel {
     private val DYNDNS = listOf(
         "duckdns.org", "no-ip.com", "no-ip.org", "ddns.net", "hopto.org", "zapto.org", "sytes.net",

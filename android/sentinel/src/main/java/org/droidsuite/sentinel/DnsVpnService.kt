@@ -43,6 +43,7 @@ class DnsVpnService : VpnService() {
     private var iocs: IocDb? = null
     private var upstream: List<InetAddress> = emptyList()
     private val uidCache = HashMap<Int, String>()
+    private val cm by lazy { getSystemService(ConnectivityManager::class.java) }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) { stopVpn(); return START_NOT_STICKY }
@@ -93,7 +94,6 @@ class DnsVpnService : VpnService() {
     private fun owner(q: DnsPacket.Query): String {
         if (Build.VERSION.SDK_INT < 29) return "unknown"
         return try {
-            val cm = getSystemService(ConnectivityManager::class.java)
             val uid = cm.getConnectionOwnerUid(
                 OsConstants.IPPROTO_UDP,
                 InetSocketAddress(InetAddress.getByAddress(q.srcIp), q.srcPort),

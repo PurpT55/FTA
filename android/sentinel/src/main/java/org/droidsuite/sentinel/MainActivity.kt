@@ -29,6 +29,12 @@ import org.droidsuite.core.hasUsageAccess
 import java.io.File
 import java.net.URL
 
+/**
+ * DroidSentinel UI, built programmatically (no XML/AndroidX). Tabs: Dashboard (five scores, monitor
+ * controls, setup checklist), Findings, Apps (detail dialog + VirusTotal menu), Network (traffic + DNS),
+ * Events (timeline) and Settings (VirusTotal key, trusted installers, IOC feeds, export).
+ * Heavy work runs on background threads via [bg]; [render] rebuilds the current tab.
+ */
 class MainActivity : Activity() {
     companion object {
         const val REQ_VPN = 10
