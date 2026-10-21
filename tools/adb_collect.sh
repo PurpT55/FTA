@@ -54,7 +54,8 @@ for svc in package activity accessibility device_policy notification appops jobs
   vpn_management "dropbox --print" procstats meminfo cpuinfo "window windows" overlay credential clipboard \
   bluetooth_manager statusbar adb package_native; do
   f=$(echo "$svc" | sed 's/ --/_/; s/ /_/g')
-  timeout 120 adb "${SERIAL[@]}" shell dumpsys $svc 2>&1 | tr -d '\r' > "$OUT/dumpsys/$f.txt"
+  read -r -a svc_args <<< "$svc"        # "dropbox --print" -> two arguments
+  timeout 120 adb "${SERIAL[@]}" shell dumpsys "${svc_args[@]}" 2>&1 | tr -d '\r' > "$OUT/dumpsys/$f.txt"
 done
 
 log "logcat (all buffers)"

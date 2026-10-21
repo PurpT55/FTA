@@ -101,6 +101,35 @@
         "device_tested": false
       }
     },
+    "setup": {
+      "name": "setup.sh + tools/build.sh",
+      "kind": "bootstrap-script",
+      "path": "setup.sh",
+      "entrypoints": [
+        "./setup.sh [-y] [--accept-licenses] [--check|--plan] [--pinned-jdk] [--sdk DIR] [--no-build]",
+        "tools/build.sh [--debug] [--skip-tests]"
+      ],
+      "purpose": "Deterministic toolchain bootstrap on Linux: detect distro (apt/dnf/pacman/zypper), JDK 17 (distro package or pinned Temurin, rejects JREs), pinned Android SDK (cmdline-tools checksum, platform 34, build-tools 34.0.0), local.properties/.fta-env, keystore, then tests + APKs into dist/ with BUILD_INFO.txt.",
+      "pinned": {
+        "jdk_major": 17,
+        "temurin_fallback": "17.0.13+11",
+        "cmdline_tools": "11076708 (12.0)",
+        "sdk_packages": [
+          "platforms;android-34",
+          "build-tools;34.0.0",
+          "platform-tools"
+        ],
+        "gradle": "8.9 (wrapper distributionSha256Sum)",
+        "agp": "8.5.2",
+        "kotlin": "1.9.24"
+      },
+      "maturity": {
+        "level": "beta",
+        "tested": "tools/tests/test_setup.py (11 cases via --plan: Debian JRE-only/JDK, 7 distro families, SDK resolution, check exit codes, build.sh Java guard); shellcheck clean",
+        "real_runs": "Ubuntu 24.04: apt install of openjdk-17-jdk-headless and pinned Temurin download+checksum verified; Android SDK download not reachable from the dev sandbox -> covered by the CI setup-linux matrix (debian:12, ubuntu:24.04, fedora:41, archlinux)",
+        "notes": "x86_64 only (Google's Linux build-tools); Alpine unsupported."
+      }
+    },
     "kotlin_check": {
       "name": "kotlin_check.sh",
       "kind": "dev-tool",
@@ -157,6 +186,11 @@
       "name": "Report section",
       "where": "analyzer/droidtriage/templates/report.html",
       "how": "data available as D (report.json); add a nav tab + section"
+    },
+    {
+      "name": "New distribution in setup.sh",
+      "where": "setup.sh pkg_manager/base_packages/jdk_package",
+      "how": "map os-release ID/ID_LIKE to a package manager and JDK 17 package; add a case to tools/tests/test_setup.py and, if possible, the CI setup-linux matrix"
     }
   ],
   "history": [
@@ -171,6 +205,10 @@
     {
       "phase": "v1.1 CI",
       "summary": "First GitHub Actions run green: Python 3.9/3.13 suites, real-APK parser tests, index check, Android unit tests and release APK build."
+    },
+    {
+      "phase": "v1.2 setup",
+      "summary": "setup.sh + tools/build.sh: distro detection, JDK 17 resolution (JRE-only installs detected), pinned Android SDK with checksum, local.properties/.fta-env, dist/ with SHA256SUMS + BUILD_INFO; Gradle wrapper checksum; CI builds from scratch on 4 distributions. Fixed a pipefail+grep -q false negative found by a real apt run."
     }
   ],
   "known_limitations": [
@@ -179,7 +217,8 @@
     "Logcat retention is short; dumpsys formats vary by Android version/OEM",
     "No detection of kernel/firmware implants, zero-click exploits without traces, cloud-account or carrier-side attacks",
     "Malwarebytes column of RISK_MATRIX is based on public documentation, not tested",
-    "Python 3.9 is the floor; Windows is untested for adb_collect.sh (use WSL/Git Bash)"
+    "Python 3.9 is the floor; Windows is untested for adb_collect.sh (use WSL/Git Bash)",
+    "Toolchain bootstrap targets x86_64 Linux (Google ships Linux build-tools for x86_64 only); macOS/Windows: use Android Studio or CI"
   ],
   "roadmap": [
     "First real-device validation of both apps; fix issues found",

@@ -1,7 +1,7 @@
 {
  "schema": "fta-project-index/1",
- "generated_at": "2026-10-21T15:18:44Z",
- "source_tree_hash": "7642123c3a829ef9",
+ "generated_at": "2026-10-21T20:11:19Z",
+ "source_tree_hash": "f1327448853c067f",
  "how_to_use": "Curated sections come from tools/index_meta.json; files/rules/cli/tests are extracted from code by tools/gen_index.py. Regenerate after any change; CI runs --check.",
  "project": {
   "name": "FTA – Forensic Triage for Android",
@@ -26,22 +26,22 @@
   ]
  },
  "stats": {
-  "files": 89,
+  "files": 93,
   "lines_by_language": {
-   "bash": 129,
+   "bash": 585,
    "gradle-kotlin": 173,
    "html": 252,
-   "json": 204,
+   "json": 243,
    "kotlin": 3557,
-   "markdown": 822,
-   "properties": 11,
-   "python": 4295,
+   "markdown": 887,
+   "properties": 12,
+   "python": 4480,
    "text": 4,
    "toml": 21,
    "xml": 114,
-   "yaml": 70
+   "yaml": 103
   },
-  "python_tests": 51,
+  "python_tests": 62,
   "kotlin_tests": 16
  },
  "components": {
@@ -124,6 +124,35 @@
     "device_tested": false
    }
   },
+  "setup": {
+   "name": "setup.sh + tools/build.sh",
+   "kind": "bootstrap-script",
+   "path": "setup.sh",
+   "entrypoints": [
+    "./setup.sh [-y] [--accept-licenses] [--check|--plan] [--pinned-jdk] [--sdk DIR] [--no-build]",
+    "tools/build.sh [--debug] [--skip-tests]"
+   ],
+   "purpose": "Deterministic toolchain bootstrap on Linux: detect distro (apt/dnf/pacman/zypper), JDK 17 (distro package or pinned Temurin, rejects JREs), pinned Android SDK (cmdline-tools checksum, platform 34, build-tools 34.0.0), local.properties/.fta-env, keystore, then tests + APKs into dist/ with BUILD_INFO.txt.",
+   "pinned": {
+    "jdk_major": 17,
+    "temurin_fallback": "17.0.13+11",
+    "cmdline_tools": "11076708 (12.0)",
+    "sdk_packages": [
+     "platforms;android-34",
+     "build-tools;34.0.0",
+     "platform-tools"
+    ],
+    "gradle": "8.9 (wrapper distributionSha256Sum)",
+    "agp": "8.5.2",
+    "kotlin": "1.9.24"
+   },
+   "maturity": {
+    "level": "beta",
+    "tested": "tools/tests/test_setup.py (11 cases via --plan: Debian JRE-only/JDK, 7 distro families, SDK resolution, check exit codes, build.sh Java guard); shellcheck clean",
+    "real_runs": "Ubuntu 24.04: apt install of openjdk-17-jdk-headless and pinned Temurin download+checksum verified; Android SDK download not reachable from the dev sandbox -> covered by the CI setup-linux matrix (debian:12, ubuntu:24.04, fedora:41, archlinux)",
+    "notes": "x86_64 only (Google's Linux build-tools); Alpine unsupported."
+   }
+  },
   "kotlin_check": {
    "name": "kotlin_check.sh",
    "kind": "dev-tool",
@@ -180,6 +209,11 @@
    "name": "Report section",
    "where": "analyzer/droidtriage/templates/report.html",
    "how": "data available as D (report.json); add a nav tab + section"
+  },
+  {
+   "name": "New distribution in setup.sh",
+   "where": "setup.sh pkg_manager/base_packages/jdk_package",
+   "how": "map os-release ID/ID_LIKE to a package manager and JDK 17 package; add a case to tools/tests/test_setup.py and, if possible, the CI setup-linux matrix"
   }
  ],
  "rules": {
@@ -1749,10 +1783,11 @@
     "analyzer/tests/test_model.py",
     "analyzer/tests/test_packages_system.py",
     "analyzer/tests/test_parity.py",
-    "analyzer/tests/test_vt_report_cli.py"
+    "analyzer/tests/test_vt_report_cli.py",
+    "tools/tests/test_setup.py"
    ],
-   "count": 51,
-   "run": "cd analyzer && python3 -W error::ResourceWarning -m unittest discover -s tests -t .",
+   "count": 62,
+   "run": "cd analyzer && python3 -W error::ResourceWarning -m unittest discover -s tests -t .  +  python3 -m unittest discover -s tools/tests -t .",
    "optional": "DROIDTRIAGE_TEST_APK=<real.apk> enables binary-parser tests"
   },
   "kotlin": {
@@ -1833,7 +1868,8 @@
   "Logcat retention is short; dumpsys formats vary by Android version/OEM",
   "No detection of kernel/firmware implants, zero-click exploits without traces, cloud-account or carrier-side attacks",
   "Malwarebytes column of RISK_MATRIX is based on public documentation, not tested",
-  "Python 3.9 is the floor; Windows is untested for adb_collect.sh (use WSL/Git Bash)"
+  "Python 3.9 is the floor; Windows is untested for adb_collect.sh (use WSL/Git Bash)",
+  "Toolchain bootstrap targets x86_64 Linux (Google ships Linux build-tools for x86_64 only); macOS/Windows: use Android Studio or CI"
  ],
  "roadmap": [
   "First real-device validation of both apps; fix issues found",
@@ -1854,6 +1890,10 @@
   {
    "phase": "v1.1 CI",
    "summary": "First GitHub Actions run green: Python 3.9/3.13 suites, real-APK parser tests, index check, Android unit tests and release APK build."
+  },
+  {
+   "phase": "v1.2 setup",
+   "summary": "setup.sh + tools/build.sh: distro detection, JDK 17 resolution (JRE-only installs detected), pinned Android SDK with checksum, local.properties/.fta-env, dist/ with SHA256SUMS + BUILD_INFO; Gradle wrapper checksum; CI builds from scratch on 4 distributions. Fixed a pipefail+grep -q false negative found by a real apt run."
   }
  ],
  "files": [
@@ -1881,29 +1921,29 @@
   {
    "path": ".claude/skills/fta-verify-without-sdk/SKILL.md",
    "language": "markdown",
-   "lines": 51,
-   "sha256": "0f37613fbb99f0a5",
+   "lines": 63,
+   "sha256": "3a11eeca662d42d9",
    "summary": "Build, test and verify this repo in a restricted sandbox (no Android SDK, dl.google.com blocked, Maven Central rate limits, no device). Use before committing changes to android/ or analyzer/, when a G"
   },
   {
    "path": ".github/workflows/ci.yml",
    "language": "yaml",
-   "lines": 70,
-   "sha256": "cc1917525e683088",
+   "lines": 103,
+   "sha256": "f600b88c5cb81236",
    "summary": "Workflow: CI"
   },
   {
    "path": "CLAUDE.md",
    "language": "markdown",
-   "lines": 31,
-   "sha256": "8f3cbeffbedecd13",
+   "lines": 38,
+   "sha256": "acd83708c5aab670",
    "summary": "FTA – Forensic Triage for Android"
   },
   {
    "path": "README.md",
    "language": "markdown",
-   "lines": 67,
-   "sha256": "9726cf87f7ebb0d9",
+   "lines": 69,
+   "sha256": "b56fd0aad1883e3c",
    "summary": "FTA – Forensic Triage for Android"
   },
   {
@@ -2294,8 +2334,8 @@
   {
    "path": "android/gradle/wrapper/gradle-wrapper.properties",
    "language": "properties",
-   "lines": 7,
-   "sha256": "3d91f0932da99885",
+   "lines": 8,
+   "sha256": "7811b7e9709748ed",
    "summary": "Gradle wrapper version"
   },
   {
@@ -2413,8 +2453,8 @@
   {
    "path": "docs/GUIDE.md",
    "language": "markdown",
-   "lines": 392,
-   "sha256": "c392342379520aef",
+   "lines": 436,
+   "sha256": "9db8102a89ed5e3c",
    "summary": "FTA user guide (Forensic Triage for Android)"
   },
   {
@@ -2432,24 +2472,38 @@
    "summary": "Droid Triage Report"
   },
   {
+   "path": "setup.sh",
+   "language": "bash",
+   "lines": 391,
+   "sha256": "9da8602d1c18339d",
+   "summary": "FTA one-shot setup: detect the Linux distribution, install a JDK 17 and the pinned Android SDK"
+  },
+  {
    "path": "tools/adb_collect.sh",
    "language": "bash",
-   "lines": 90,
-   "sha256": "94fdb1a9251b1539",
+   "lines": 91,
+   "sha256": "0545c9849f3b112b",
    "summary": "adb_collect.sh – collect the same evidence as DroidCollector, from a computer over USB."
+  },
+  {
+   "path": "tools/build.sh",
+   "language": "bash",
+   "lines": 64,
+   "sha256": "d010733c5c77a5bc",
+   "summary": "Build and test everything with the toolchain chosen by ./setup.sh; artefacts land in dist/."
   },
   {
    "path": "tools/gen_index.py",
    "language": "python",
-   "lines": 319,
-   "sha256": "4f35947ade10e191",
+   "lines": 322,
+   "sha256": "b3e2a12c6c0a777b",
    "summary": "Generate PROJECT_INDEX.json: a single machine-readable synthesis of the repository."
   },
   {
    "path": "tools/index_meta.json",
    "language": "json",
-   "lines": 204,
-   "sha256": "5ee18adf8705f9ed",
+   "lines": 243,
+   "sha256": "da580f8064e2acfc",
    "summary": "Curated metadata merged into PROJECT_INDEX.json by tools/gen_index.py"
   },
   {
@@ -2479,6 +2533,20 @@
    "lines": 10,
    "sha256": "c610a25ff3dfe5b9",
    "summary": "Creates android/suite.keystore used to sign BOTH apps with the same key."
+  },
+  {
+   "path": "tools/tests/__init__.py",
+   "language": "python",
+   "lines": 0,
+   "sha256": "e3b0c44298fc1c14",
+   "summary": "Package marker"
+  },
+  {
+   "path": "tools/tests/test_setup.py",
+   "language": "python",
+   "lines": 182,
+   "sha256": "214877dd135ab500",
+   "summary": "setup.sh / build.sh decision logic, exercised through `setup.sh --plan` with fake distributions,"
   }
  ]
 }

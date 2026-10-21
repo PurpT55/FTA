@@ -50,7 +50,44 @@ The project has no AndroidX or third-party dependencies, so builds are small and
 **Both apps must be signed with the same key**: the Collector reads Sentinel's report through a
 signature-protected endpoint.
 
-### Option A: GitHub Actions (no Android SDK needed)
+### Option A (recommended): `./setup.sh` on Linux
+
+One command installs exactly what the build needs, then builds and tests everything:
+
+```bash
+git clone https://github.com/PurpT55/FTA && cd FTA
+./setup.sh                     # asks before installing packages and shows the Android SDK licenses
+# unattended: ./setup.sh -y --accept-licenses
+```
+
+What it does, in order:
+
+1. Detects the distribution from `/etc/os-release`: **Debian/Ubuntu/Mint** (apt), **Fedora/RHEL/Rocky** (dnf),
+   **Arch/Manjaro** (pacman), **openSUSE** (zypper). It installs `curl unzip git python3` if they're missing.
+2. Finds a **JDK 17**. JDK 11 is too old for the Android Gradle plugin, and a **JRE has no `javac`**, so it can't
+   compile. If none is found it installs the distribution's package (`openjdk-17-jdk-headless` on Debian/Ubuntu).
+   If the distribution has none, it downloads the pinned Eclipse Temurin 17.0.13 and checks its SHA-256.
+   `--pinned-jdk` forces that exact JDK everywhere.
+3. Installs the **pinned Android SDK** into `~/Android/Sdk` (or `$ANDROID_HOME`, or `--sdk DIR`): command-line
+   tools 12.0 (SHA-256 checked), `platforms;android-34`, `build-tools;34.0.0` and `platform-tools` (adb).
+4. Writes `android/local.properties` (`sdk.dir=…`) and `.fta-env` (`JAVA_HOME`, `ANDROID_HOME`), and creates the
+   shared signing key `android/suite.keystore`.
+5. Runs `tools/build.sh`: Python tests, Android unit tests, release APKs. Results go in `dist/`:
+   `DroidSentinel-release.apk`, `DroidCollector-release.apk`, `SHA256SUMS`, and `BUILD_INFO.txt`
+   (commit, JDK, Gradle, AGP, Kotlin, signing certificate).
+
+Other modes: `./setup.sh --check` reports what is present or missing and changes nothing. `--no-build` sets up only.
+`--debug` builds debug APKs. `--help` lists every option. You can re-run it safely: anything already in place is
+reused. Afterwards, rebuild with `tools/build.sh`, or by hand with `. ./.fta-env && cd android && ./gradlew assembleRelease`.
+
+Pinned versions (all in one block at the top of `setup.sh`): JDK 17, Gradle 8.9 (wrapper, SHA-256 verified),
+AGP 8.5.2, Kotlin 1.9.24, compileSdk 34, build-tools 34.0.0. CI runs `setup.sh` from scratch on Debian 12,
+Ubuntu 24.04, Fedora 41 and Arch Linux containers.
+
+Limits: Google ships the Linux Android build tools for **x86_64 only**, so build on ARM64 machines through CI.
+Alpine (musl) is not supported.
+
+### Option B: GitHub Actions (no local toolchain)
 
 1. Push this folder to a **private** GitHub repository.
 2. *(Recommended)* Create a persistent signing key once, so future builds can update the installed apps:
@@ -62,20 +99,22 @@ signature-protected endpoint.
    Add `SUITE_KEYSTORE_PASSWORD`, `SUITE_KEY_ALIAS` and `SUITE_KEY_PASSWORD` too if you changed the defaults.
    Without the secret, each build generates a throw-away key. That works, but you then have to uninstall
    before you can install a newer build.
-3. *Actions → Build APKs → Run workflow*. Download the `droid-forensics-apks` artifact, which contains
+3. *Actions → CI → Run workflow*. Download the `droid-forensics-apks` artifact, which contains
    `DroidSentinel.apk`, `DroidCollector.apk` and `SHA256SUMS`.
 
-### Option B: Android Studio
+### Option C: Android Studio
 
 Open the `android/` folder, wait for Gradle sync, then *Build → Build APK(s)*.
 Optionally run `tools/make_keystore.sh` first. Otherwise both apps use your machine's debug key, which is
 also fine because it's the same key for both.
 
-### Option C: command line (Android SDK installed, `ANDROID_HOME` set)
+### Option D: by hand (you manage JDK 17 + Android SDK yourself)
 
 ```bash
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64      # a JDK 17: "$JAVA_HOME/bin/javac" must exist
+echo "sdk.dir=$HOME/Android/Sdk" > android/local.properties  # or export ANDROID_HOME=…
 tools/make_keystore.sh
-cd android && ./gradlew assembleRelease
+cd android && ./gradlew test assembleRelease
 # → sentinel/build/outputs/apk/release/sentinel-release.apk
 # → collector/build/outputs/apk/release/collector-release.apk
 ```
@@ -374,6 +413,11 @@ Open `report.html` (works offline, light/dark).
 
 | Problem | Fix |
 |---|---|
+| `SDK location not found. Define a valid SDK location with an ANDROID_HOME …` | the Android SDK isn't installed or configured: run `./setup.sh` (it installs it and writes `android/local.properties`) |
+| `Android Gradle plugin requires Java 17` / `Unsupported class file major version` | Gradle is running on the wrong Java. `export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64`, or `. ./.fta-env` after `./setup.sh` |
+| `Toolchain … does not provide the required capabilities: [JAVA_COMPILER]` / no `javac` | you have a Java 17 **JRE**: `sudo apt install openjdk-17-jdk-headless` (`./setup.sh` does it) |
+| Several Java versions installed | the build only looks at `JAVA_HOME`. `update-alternatives` doesn't matter if `JAVA_HOME` points to the 17 JDK |
+| `Verification of Gradle distribution failed` | corrupted download or tampered mirror: delete `~/.gradle/wrapper/dists/gradle-8.9-bin` and retry |
 | Collector shows ✖ READ_LOGS after `pm grant` | reopen the app; on Android 13+ accept the log-access dialog during collection |
 | `SENTINEL_REPORT ✖` | install Sentinel **before** the Collector, and sign both with the same key. Reinstall the Collector |
 | Sentinel stops after a while | battery optimisation: allow unrestricted battery use; some OEMs (Xiaomi, Huawei, Samsung) need "autostart" too, see dontkillmyapp.com |

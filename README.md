@@ -16,9 +16,11 @@ built to complement scanners like Malwarebytes.
 ## Development
 
 ```bash
-cd analyzer && python3 -m unittest discover -s tests -t .     # 51 Python tests (stdlib only)
+./setup.sh --check                                            # toolchain status (JDK 17, Android SDK)
+tools/build.sh                                                # all tests + release APKs into dist/
+cd analyzer && python3 -m unittest discover -s tests -t .     # Python tests only (stdlib)
 tools/kotlin_check.sh                                         # Kotlin compile + 16 JVM tests, no Android SDK needed
-cd android && ./gradlew test assembleRelease                  # full Android build (SDK required)
+. ./.fta-env && cd android && ./gradlew test assembleRelease # Gradle by hand (after setup.sh)
 python3 tools/gen_index.py                                    # refresh PROJECT_INDEX.json after changes
 ```
 
@@ -28,12 +30,12 @@ step-by-step in `.claude/skills/add-detection-rule/SKILL.md`.
 ## Quick start
 
 ```bash
-# 1. Build both APKs (or use the GitHub Actions workflow, see the guide)
-tools/make_keystore.sh && (cd android && ./gradlew assembleRelease)
+# 1. Install the pinned toolchain (JDK 17 + Android SDK), build and test everything -> dist/
+./setup.sh                     # Debian/Ubuntu/Fedora/Arch/openSUSE; add -y --accept-licenses for unattended
 
 # 2. Install (Sentinel first) and boost the Collector
-adb install android/sentinel/build/outputs/apk/release/sentinel-release.apk
-adb install android/collector/build/outputs/apk/release/collector-release.apk
+adb install dist/DroidSentinel-release.apk
+adb install dist/DroidCollector-release.apk
 adb shell pm grant org.droidsuite.collector android.permission.READ_LOGS
 adb shell pm grant org.droidsuite.collector android.permission.DUMP
 adb shell appops set org.droidsuite.collector GET_USAGE_STATS allow

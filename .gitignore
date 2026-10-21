@@ -3,8 +3,12 @@ android/build/
 android/*/build/
 android/local.properties
 android/suite.keystore
+*.keystore
 *.apk
 __pycache__/
 *.pyc
 out/
 *.zip
+.fta-env
+dist/
+tools/kotlin_check/.kotlin/

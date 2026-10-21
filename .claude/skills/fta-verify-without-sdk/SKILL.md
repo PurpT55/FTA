@@ -45,7 +45,19 @@ const { chromium } = require('/opt/node-tools/node_modules/playwright');   // gl
 // click every nav tab, assert document.documentElement.scrollWidth <= viewport width
 ```
 
+## Toolchain bootstrap (setup.sh)
+- Real machines / CI: `./setup.sh -y --accept-licenses` installs JDK 17 + pinned SDK and builds. In a sandbox
+  where dl.google.com is blocked it stops at the command-line tools download. That's expected; the CI
+  `setup-linux` matrix (debian:12, ubuntu:24.04, fedora:41, archlinux) is the end-to-end test.
+- Decision logic is tested without installing anything: `python3 -m unittest discover -s tools/tests -t .`
+  (runs `setup.sh --plan` with `FTA_OS_RELEASE`, `FTA_JVM_DIRS`, `FTA_IGNORE_PATH_JDK=1`, fake `HOME`).
+- Lessons: a "JDK" folder may be a **JRE** (no `bin/javac`). Gradle then can't compile, so always check javac.
+  Read `$JAVA_HOME/release` instead of starting a JVM. Debian's `java-1.17.0-openjdk-amd64` is a symlink alias, so skip
+  symlinks. **`cmd | grep -q` under `set -o pipefail` can report "not found"** (grep exits early, cmd gets SIGPIPE):
+  capture into a variable first. A real `apt` run caught exactly this in `pkg_available`.
+- `tools/build.sh` refuses any JAVA_HOME that isn't a JDK 17 and records the toolchain in `dist/BUILD_INFO.txt`.
+
 ## Before committing
-1. Python tests + `tools/kotlin_check.sh` green.
+1. Python tests (analyzer + tools/tests) + `tools/kotlin_check.sh` green; `shellcheck setup.sh tools/*.sh` clean.
 2. `python3 tools/gen_index.py` (CI runs `--check`).
 3. No `android-all.jar`, `build/`, `.gradle/` or evidence zips staged (`git status --short`).

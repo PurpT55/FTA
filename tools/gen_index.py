@@ -33,7 +33,9 @@ META = os.path.join(ROOT, "tools", "index_meta.json")
 SCHEMA = "fta-project-index/1"
 LANG = {".py": "python", ".kt": "kotlin", ".kts": "gradle-kotlin", ".sh": "bash", ".md": "markdown", ".json": "json",
         ".yml": "yaml", ".yaml": "yaml", ".html": "html", ".xml": "xml", ".properties": "properties", ".toml": "toml", ".txt": "text"}
-SKIP = re.compile(r"(^|/)(\.git|build|\.gradle|__pycache__|node_modules)(/|$)|\.(jar|apk|zip|keystore|png)$|^PROJECT_INDEX\.json$")
+# Generated / machine-specific files never belong in the index (matters when git is unavailable, e.g. tarball checkouts).
+SKIP = re.compile(r"(^|/)(\.git|build|\.gradle|\.kotlin|__pycache__|node_modules|dist)(/|$)|\.(jar|apk|zip|keystore|png)$"
+                  r"|^PROJECT_INDEX\.json$|(^|/)local\.properties$|^\.fta-env$")
 
 
 def rel(p: str) -> str:
@@ -213,12 +215,13 @@ def kotlin_section(files: list[str]) -> dict:
 
 # --------------------------------------------------------------------------- tests / docs / skills
 def tests_section(files: list[str]) -> dict:
-    py = [f for f in files if f.startswith("analyzer/tests/test_") and f.endswith(".py")]
+    py = [f for f in files if re.match(r"(analyzer|tools)/tests/test_.*\.py$", f)]
     kt = [f for f in files if "/src/test/" in f and f.endswith(".kt")]
     py_count = sum(len(re.findall(r"^\s+def test_", read(f), re.M)) for f in py)
     kt_count = sum(read(f).count("@Test") for f in kt)
     return {
-        "python": {"files": py, "count": py_count, "run": "cd analyzer && python3 -W error::ResourceWarning -m unittest discover -s tests -t .",
+        "python": {"files": py, "count": py_count,
+                   "run": "cd analyzer && python3 -W error::ResourceWarning -m unittest discover -s tests -t .  +  python3 -m unittest discover -s tools/tests -t .",
                    "optional": "DROIDTRIAGE_TEST_APK=<real.apk> enables binary-parser tests"},
         "kotlin": {"files": kt, "count": kt_count, "run": "tools/kotlin_check.sh  (or: cd android && ./gradlew test)"},
         "ci": [f for f in files if f.startswith(".github/workflows/")],
