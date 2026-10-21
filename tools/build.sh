@@ -7,7 +7,13 @@
 #
 # Reads .fta-env (JAVA_HOME, ANDROID_HOME) written by setup.sh; refuses to run with anything but a
 # JDK 17 so builds are identical on every machine. dist/BUILD_INFO.txt records the exact toolchain.
-set -euo pipefail
+set -Eeuo pipefail
+# GitHub Actions: annotate the exact failing command (CI logs are not always at hand).
+on_err() {
+  local rc=$?
+  if [ "${GITHUB_ACTIONS:-}" = true ]; then echo "::error title=build.sh::exit $rc at line ${BASH_LINENO[0]}: $BASH_COMMAND"; fi
+}
+trap on_err ERR
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TYPE=release; TESTS=1
 for a in "$@"; do
@@ -17,13 +23,17 @@ for a in "$@"; do
     *) echo "unknown option: $a" >&2; exit 2 ;;
   esac
 done
-die() { echo "✖ $*" >&2; exit 1; }
+die() {
+  echo "✖ $*" >&2
+  [ "${GITHUB_ACTIONS:-}" = true ] && echo "::error title=build.sh::$*"
+  exit 1
+}
 step() { printf '\e[1m▸ %s\e[0m\n' "$*"; }
 
 ENV_FILE=${FTA_ENV:-$ROOT/.fta-env}       # FTA_ENV=/dev/null ignores it (tests)
 # shellcheck source=/dev/null
 if [ -f "$ENV_FILE" ]; then . "$ENV_FILE"; fi
-[ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/javac" ] || die "JAVA_HOME is not a JDK (no javac). Run ./setup.sh first."
+if [ -z "${JAVA_HOME:-}" ] || [ ! -x "$JAVA_HOME/bin/javac" ]; then die "JAVA_HOME is not a JDK (no javac). Run ./setup.sh first."; fi
 jv=$(sed -n 's/^JAVA_VERSION="\([0-9]*\).*/\1/p' "$JAVA_HOME/release" 2>/dev/null || true)
 [ "$jv" = 17 ] || die "JAVA_HOME=$JAVA_HOME is Java ${jv:-?}, the build is pinned to 17. Run ./setup.sh (or export JAVA_HOME to a JDK 17)."
 if [ -z "${ANDROID_HOME:-}" ] && ! grep -q '^sdk.dir=' "$ROOT/android/local.properties" 2>/dev/null; then
@@ -35,8 +45,8 @@ SOURCE_DATE_EPOCH=$(git -C "$ROOT" log -1 --format=%ct 2>/dev/null || date +%s);
 
 if [ "$TESTS" = 1 ]; then
   step "Python tests (analyzer)"
-  (cd "$ROOT/analyzer" && python3 -W error::ResourceWarning -m unittest discover -s tests -t . 2>&1 | tail -3)
-  (cd "$ROOT" && python3 -m unittest discover -s tools/tests -t . 2>&1 | tail -3)
+  (cd "$ROOT/analyzer" && python3 -W error::ResourceWarning -m unittest discover -s tests -t .)
+  (cd "$ROOT" && python3 -m unittest discover -s tools/tests -t .)
 fi
 
 step "Gradle ($TYPE)"

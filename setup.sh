@@ -9,7 +9,13 @@
 #
 # Everything the build depends on is pinned in the "Pinned toolchain" block below; CI runs this exact
 # script on Debian 12, Ubuntu 24.04, Fedora and Arch containers.
-set -euo pipefail
+set -Eeuo pipefail
+# GitHub Actions: annotate the exact failing command (CI logs are not always at hand).
+on_err() {
+  local rc=$?
+  if [ "${GITHUB_ACTIONS:-}" = true ]; then echo "::error title=setup.sh::exit $rc at line ${BASH_LINENO[0]}: $BASH_COMMAND"; fi
+}
+trap on_err ERR
 
 # ----------------------------------------------------------------------------- pinned toolchain
 JDK_MAJOR=17                                   # AGP 8.5 needs a JDK 17 (not a JRE: javac is required)
@@ -72,7 +78,12 @@ if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then B=$'\e[1m'; G=$'\e[32m'; Y=$'\e[33m'
 step() { [ "$MODE" = plan ] || printf '%s▸ %s%s\n' "$B" "$*" "$N"; }
 ok()   { [ "$MODE" = plan ] || printf '  %s✔%s %s\n' "$G" "$N" "$*"; }
 warn() { [ "$MODE" = plan ] || printf '  %s!%s %s\n' "$Y" "$N" "$*" >&2; }
-die()  { printf '%s✖ %s%s\n' "$R" "$*" "$N" >&2; exit 1; }
+die()  {
+  printf '%s✖ %s%s\n' "$R" "$*" "$N" >&2
+  # GitHub Actions: surface the reason as an annotation (visible in the UI and the checks API)
+  [ "${GITHUB_ACTIONS:-}" = true ] && printf '::error title=setup.sh::%s\n' "$*"
+  exit 1
+}
 plan() { [ "$MODE" = plan ] && printf '%s=%s\n' "$1" "$2"; return 0; }
 
 # ----------------------------------------------------------------------------- distribution
@@ -99,13 +110,14 @@ pkg_manager() {
   done
 }
 
-# Base tools + the JDK package name per package manager.
-base_packages() {
-  case "$PM" in
-    apt) echo "ca-certificates curl unzip git python3 coreutils" ;;
-    dnf) echo "ca-certificates curl unzip git python3 coreutils findutils which" ;;
-    pacman) echo "ca-certificates curl unzip git python coreutils" ;;
-    zypper) echo "ca-certificates curl unzip git python3 coreutils" ;;
+# Package providing a missing command (only missing ones are installed: e.g. Fedora's preinstalled
+# curl-minimal conflicts with the curl package).
+tool_package() {
+  case "$1" in
+    sha256sum) echo coreutils ;;
+    python3) [ "$PM" = pacman ] && echo python || echo python3 ;;
+    curl) echo "ca-certificates curl" ;;
+    *) echo "$1" ;;
   esac
 }
 jdk_package() {
@@ -247,8 +259,11 @@ install_cmdline_tools() {
       || die "download failed: https://dl.google.com/android/repository/$zip"
     mv "$CACHE/$zip.part" "$CACHE/$zip"
   fi
-  echo "$CMDLINE_TOOLS_SHA256  $CACHE/$zip" | sha256sum -c - >/dev/null \
-    || { rm -f "$CACHE/$zip"; die "checksum mismatch for $zip (deleted; re-run to download again)"; }
+  local got; got=$(sha256sum "$CACHE/$zip" | cut -d' ' -f1)
+  if [ "$got" != "$CMDLINE_TOOLS_SHA256" ]; then
+    rm -f "$CACHE/$zip"
+    die "checksum mismatch for $zip: expected $CMDLINE_TOOLS_SHA256, got $got (file deleted; re-run to retry)"
+  fi
   rm -rf "$SDK_DIR/cmdline-tools/latest" "$SDK_DIR/cmdline-tools/.tmp"
   unzip -q "$CACHE/$zip" -d "$SDK_DIR/cmdline-tools/.tmp"
   mv "$SDK_DIR/cmdline-tools/.tmp/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
@@ -316,7 +331,9 @@ for t in curl unzip git python3 sha256sum; do command -v "$t" >/dev/null || need
 plan missing_tools "${need[*]:-}"
 if [ "${#need[@]}" -gt 0 ]; then
   if [ "$MODE" = setup ] && [ "$PM" != none ]; then
-    step "Installing base tools"; pkg_refresh; read -r -a pkgs <<< "$(base_packages)"; pkg_install "${pkgs[@]}"
+    pkgs=(); for t in "${need[@]}"; do read -r -a p <<< "$(tool_package "$t")"; pkgs+=("${p[@]}"); done
+    step "Installing base tools: ${pkgs[*]}"; pkg_refresh; pkg_install "${pkgs[@]}"
+    for t in "${need[@]}"; do command -v "$t" >/dev/null || die "$t still missing after installing ${pkgs[*]}"; done
   else
     warn "missing tools: ${need[*]}"
   fi
