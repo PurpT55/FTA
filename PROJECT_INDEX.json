@@ -1,7 +1,7 @@
 {
  "schema": "fta-project-index/1",
- "generated_at": "2026-10-21T20:16:28Z",
- "source_tree_hash": "0be813fca4fb6dff",
+ "generated_at": "2026-10-21T20:18:37Z",
+ "source_tree_hash": "883e5b3fdcbe8f3e",
  "how_to_use": "Curated sections come from tools/index_meta.json; files/rules/cli/tests are extracted from code by tools/gen_index.py. Regenerate after any change; CI runs --check.",
  "project": {
   "name": "FTA – Forensic Triage for Android",
@@ -28,14 +28,14 @@
  "stats": {
   "files": 93,
   "lines_by_language": {
-   "bash": 612,
+   "bash": 613,
    "gradle-kotlin": 173,
    "html": 252,
    "json": 243,
    "kotlin": 3557,
    "markdown": 887,
    "properties": 12,
-   "python": 4480,
+   "python": 4486,
    "text": 4,
    "toml": 21,
    "xml": 114,
@@ -2474,8 +2474,8 @@
   {
    "path": "setup.sh",
    "language": "bash",
-   "lines": 408,
-   "sha256": "718c720204986710",
+   "lines": 409,
+   "sha256": "f5323a243bae7657",
    "summary": "FTA one-shot setup: detect the Linux distribution, install a JDK 17 and the pinned Android SDK"
   },
   {
@@ -2544,8 +2544,8 @@
   {
    "path": "tools/tests/test_setup.py",
    "language": "python",
-   "lines": 182,
-   "sha256": "214877dd135ab500",
+   "lines": 188,
+   "sha256": "1fc2a8c75bc8227f",
    "summary": "setup.sh / build.sh decision logic, exercised through `setup.sh --plan` with fake distributions,"
   }
  ]

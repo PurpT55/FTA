@@ -70,7 +70,9 @@ class SetupPlan(unittest.TestCase):
         with open(osr, "w") as fh:
             fh.write(OS[distro])
         env = {k: v for k, v in os.environ.items() if k not in ("JAVA_HOME", "ANDROID_HOME", "ANDROID_SDK_ROOT")}
-        env.update({"FTA_OS_RELEASE": osr, "FTA_JVM_DIRS": self.jvm, "FTA_IGNORE_PATH_JDK": "1", "HOME": self.home, "NO_COLOR": "1"})
+        self.local_props = os.path.join(self.tmp, "local.properties")   # never the repo's real one
+        env.update({"FTA_OS_RELEASE": osr, "FTA_JVM_DIRS": self.jvm, "FTA_IGNORE_PATH_JDK": "1", "HOME": self.home,
+                    "NO_COLOR": "1", "FTA_LOCAL_PROPERTIES": self.local_props})
         env.update(env_extra or {})
         p = subprocess.run(["bash", SETUP, *args], capture_output=True, text=True, env=env, cwd=self.tmp)
         return p
@@ -132,6 +134,10 @@ class SetupPlan(unittest.TestCase):
         self.assertEqual(d["sdk_dir"], sdk)
         d = self.plan("debian12")
         self.assertEqual(d["sdk_dir"], os.path.join(self.home, "Android", "Sdk"))
+        with open(self.local_props, "w") as fh:                     # android/local.properties is honoured
+            fh.write("# generated\nsdk.dir=/opt/sdk-from-local-properties\n")
+        self.assertEqual(self.plan("debian12")["sdk_dir"], "/opt/sdk-from-local-properties")
+        os.remove(self.local_props)
         self.assertEqual(d["sdk_missing"], "platforms;android-34 build-tools;34.0.0 platform-tools")
         self.assertEqual(d["cmdline_tools"], "install:11076708")
 
