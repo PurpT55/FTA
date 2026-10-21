@@ -1,4 +1,4 @@
-# Android Forensics Suite: user guide
+# FTA user guide (Forensic Triage for Android)
 
 Three tools that work together:
 
@@ -246,31 +246,63 @@ You can run both: the Collector for the Sentinel report and usage stats, the scr
 
 ```bash
 cd analyzer
-python3 -m droidtriage --update-iocs                 # once: stalkerware + MVT spyware feeds → analyzer/iocs/
-python3 -m droidtriage ~/evidence/droidcollect_Pixel_7_20261021.zip -o ~/evidence/report
-# optional:
-export VT_API_KEY=xxxxxxxx                            # hash lookups only
-python3 -m droidtriage evidence.zip --vt-scope sideloaded --vt-max 100
-python3 -m droidtriage evidence.zip --baseline ~/evidence/report_last_month/report.json
-python3 -m droidtriage evidence.zip --ioc my_iocs.txt --trusted-installer org.fdroid.basic
-pip install -e .   # optional: adds a `droidtriage` command
+pip install -e .                      # adds the `droidtriage` command (or use: python3 -m droidtriage …)
+droidtriage iocs update               # once: stalkerware + MVT spyware feeds
+droidtriage analyze ~/evidence/droidcollect_Pixel_7_20261021.zip --open
 ```
 
-Python 3.9+, standard library only. It accepts a zip, an extracted folder, or an `adb_collect.sh` folder.
-Exit code: `0` clean, `1` high findings, `2` malware indicators. That makes scripting easy.
+Python 3.9+, standard library only. `analyze` accepts a zip, an extracted folder, or an `adb_collect.sh` folder.
+`droidtriage EVIDENCE` without a command still works (shortcut for `analyze`).
 
-| Option | Effect |
-|---|---|
-| `--update-iocs` | downloads AssoEchap stalkerware indicators + every STIX2 feed listed by mvt-project/mvt-indicators (Pegasus, Predator, RCS Lab, …). Sends nothing about you |
-| `--ioc PATH` | extra IOC file/folder (YAML, STIX2, or text list) |
-| `--vt-key` / `VT_API_KEY` | VirusTotal hash lookups (cached in `~/.cache/droidtriage`) |
-| `--vt-scope sideloaded\|user\|all` | which apps to look up (default user apps, sideloaded first) |
-| `--vt-upload PKG` | **uploads** that APK after you type `UPLOAD` to confirm (`--yes` for scripts) |
-| `--baseline report.json` | flags apps new since last time, signer/binary changes, and marks NEW findings |
-| `--trusted-installer PKG` | treat another store as trusted |
-| `--max-apk-mb N` | skip static analysis of very large APKs (default 300) |
+### 5.2 Commands
 
-### 5.2 What it analyses
+| Command | What it does | Exit code |
+|---|---|---|
+| `analyze EVIDENCE` | full analysis → `report.html`, `report.json`, `findings.csv`, `apps.csv`, `timeline.csv` | 0 clean · 1 HIGH · 2 malware · 3 error |
+| `apk FILE.apk …` | static analysis of standalone APKs (manifest, signers, code rules, trackers, hosts) + IOC check | 2 on IOC hit |
+| `diff OLD.json NEW.json` | apps added/removed/changed, new and resolved findings, score changes | 0 |
+| `iocs update` / `stats` / `check VALUE…` | download feeds, show what's loaded, test a package/domain/hash/IP | `check`: 2 on match |
+| `vt lookup HASH_OR_FILE…` | VirusTotal verdicts (files are hashed locally; only the hash is sent) | 2 if ≥3 engines |
+| `vt upload FILE` | uploads a file after you type `UPLOAD` (`--yes` for scripts) | 0 |
+| `sample OUT.zip [--apk real.apk]` | synthetic evidence with planted indicators: try the whole pipeline without a phone | 0 |
+| `rules [--json]` | list analysers, logcat rules, APK code rules, trackers, packers | 0 |
+
+Global flags (any position): `-q/--quiet`, `-v/--verbose` (per-analyser timings), `--no-color` (or `NO_COLOR=1`).
+
+**`analyze` options**
+
+| Group | Option | Effect |
+|---|---|---|
+| output | `-o DIR` | output folder (default `<evidence>_report`) |
+| | `-f html,json,csv` | formats to write (default all) |
+| | `--open` | open the HTML report when done |
+| | `--json` | print summary + findings as JSON on stdout (`--json -q \| jq .summary`) |
+| | `--top N`, `--min-severity SEV` | how much of the console summary to show (default 15, HIGH) |
+| | `--fail-on high\|malware\|never` | exit-code policy for scripts (default high) |
+| intelligence | `--ioc PATH` | extra IOC file/folder (YAML, STIX2, or text list), repeatable |
+| | `--no-default-iocs` | ignore the default IOC folder (`$DROIDTRIAGE_IOCS`, `analyzer/iocs`, or `~/.local/share/droidtriage/iocs`) |
+| | `--trusted-installer PKG` | treat another store as trusted, repeatable |
+| | `--baseline report.json` | flag apps new since last time and signer/binary changes; NEW badge on findings |
+| VirusTotal | `--vt-key` / `VT_API_KEY` | hash lookups (cached 7 days in `~/.cache/droidtriage`) |
+| | `--vt-scope sideloaded\|user\|all`, `--vt-max N` | what to look up (default user apps, sideloaded first, 200 max) |
+| | `--vt-upload PKG`, `--yes` | **upload** that APK after typed confirmation |
+| performance | `-j N` | parallel APK workers (default min(4, CPUs)) |
+| | `--max-apk-mb MB` | skip static analysis of larger APKs (default 300) |
+| | `--skip a,b` | skip analysers: `inventory, apk, virustotal, device, dumpsys, packages, logcat, network` |
+
+Examples:
+
+```bash
+VT_API_KEY=xxx droidtriage analyze e.zip --vt-scope sideloaded --vt-max 100
+droidtriage analyze new.zip --baseline old_report/report.json --fail-on malware
+droidtriage analyze e.zip --ioc my_iocs.txt --trusted-installer org.fdroid.basic -j 8
+droidtriage apk ~/Downloads/suspicious.apk
+droidtriage iocs check com.systemservice copy9.com
+droidtriage diff march/report.json april/report.json
+droidtriage sample demo.zip && droidtriage analyze demo.zip --open
+```
+
+### 5.3 What it analyses
 
 | Analyser | Input | Examples of detections |
 |---|---|---|
@@ -282,7 +314,7 @@ Exit code: `0` clean, `1` high findings, `2` malware indicators. That makes scri
 | Network | Sentinel DNS log, netstats, APK hosts | IOC/DGA/dyn-DNS/tunnel/Telegram lookups per app, apps uploading while never opened, hidden apps uploading, IOC endpoints embedded in code |
 | VirusTotal | hashes | detections and family labels |
 
-### 5.3 Reading the report
+### 5.4 Reading the report
 
 Open `report.html` (works offline, light/dark).
 
@@ -298,7 +330,7 @@ Open `report.html` (works offline, light/dark).
 6. **Network tab:** flagged DNS per app and the top uploaders.
 7. Export `findings.csv` / `timeline.csv` for your notes or a support organisation.
 
-### 5.4 Common false positives
+### 5.5 Common false positives
 
 | Finding | Usually benign when… |
 |---|---|
@@ -319,11 +351,11 @@ Open `report.html` (works offline, light/dark).
 |---|---|
 | Always | DroidSentinel monitor + DNS monitor on. React to its notifications |
 | Weekly | Glance at the dashboard. Run *VirusTotal check apps* after installing new apps |
-| Monthly, or when something feels off | DroidCollector → zip → `droidtriage evidence.zip --baseline last/report.json` → review the NEW findings |
+| Monthly, or when something feels off | DroidCollector → zip → `droidtriage analyze evidence.zip --baseline last/report.json` → review the NEW findings |
 | After a Malwarebytes detection | Collect **before** removing, run droidtriage, look at the timeline around the install date, then remove |
 | If you suspect state-level spyware | `tools/adb_collect.sh --bugreport`, then MVT `mvt-android check-bugreport --iocs …`, then contact Amnesty Security Lab or Access Now |
 
-`droidtriage`'s exit codes let you script it, for example: `python3 -m droidtriage new.zip --baseline old.json || notify-send "Phone check: findings"`.
+`droidtriage`'s exit codes let you script it, for example: `droidtriage analyze new.zip --baseline old.json -q || notify-send "Phone check: findings"`.
 
 ---
 
@@ -357,4 +389,4 @@ Open `report.html` (works offline, light/dark).
   a VirusTotal upload you confirmed, the IOC download you tapped, and forwarding DNS queries to your resolver.
 * DroidCollector: no network permission use at all (it doesn't even request `INTERNET`). It writes only to the
   file you choose.
-* droidtriage: offline, except `--update-iocs` and VirusTotal options you pass.
+* droidtriage: offline, except `iocs update` and the VirusTotal options/commands you use.

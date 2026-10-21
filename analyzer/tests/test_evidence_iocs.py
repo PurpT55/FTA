@@ -1,3 +1,4 @@
+"""Evidence access (zip/folder layouts) and IOC feed parsing (stalkerware YAML, STIX2, text)."""
 import json
 import os
 import tempfile

@@ -9,6 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** RiskEngine + AppRules/DeviceRules behaviour, scores, pluggability and HashPolicy. */
 class RiskEngineTest {
     private fun run(apps: List<AppRecord>, dev: DeviceState = device(), iocs: IocDb = IocDb(),
                     vt: Map<String, VtVerdict> = emptyMap()) =

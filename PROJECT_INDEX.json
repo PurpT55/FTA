@@ -1,0 +1,2480 @@
+{
+ "schema": "fta-project-index/1",
+ "generated_at": "2026-10-21T15:15:09Z",
+ "source_tree_hash": "aeaf8ae296ac7129",
+ "how_to_use": "Curated sections come from tools/index_meta.json; files/rules/cli/tests are extracted from code by tools/gen_index.py. Regenerate after any change; CI runs --check.",
+ "project": {
+  "name": "FTA – Forensic Triage for Android",
+  "repository": "https://github.com/PurpT55/FTA",
+  "purpose": "Defensive toolkit to check one's own Android phone for stalkerware, spyware, malware, tampering and privacy abuse; complements signature scanners such as Malwarebytes.",
+  "audience": [
+   "phone owners investigating their own device",
+   "helpers/support organisations",
+   "developers extending detections"
+  ],
+  "languages": [
+   "Kotlin (Android, minSdk 26, targetSdk 34)",
+   "Python >= 3.9 (stdlib only)",
+   "Bash",
+   "HTML/JS (single-file report)"
+  ],
+  "principles": [
+   "Nothing leaves the device/computer without explicit user action; VirusTotal receives hashes/domains only, uploads need confirmation",
+   "Collect before cleaning (evidence preservation)",
+   "Honest coverage: every report states its blind spots",
+   "No third-party dependencies (no AndroidX, no pip packages)"
+  ]
+ },
+ "stats": {
+  "files": 89,
+  "lines_by_language": {
+   "bash": 129,
+   "gradle-kotlin": 173,
+   "html": 252,
+   "json": 133,
+   "kotlin": 3557,
+   "markdown": 822,
+   "properties": 11,
+   "python": 4295,
+   "text": 4,
+   "toml": 21,
+   "xml": 114,
+   "yaml": 70
+  },
+  "python_tests": 51,
+  "kotlin_tests": 16
+ },
+ "components": {
+  "sentinel": {
+   "name": "DroidSentinel",
+   "kind": "android-app",
+   "path": "android/sentinel",
+   "package": "org.droidsuite.sentinel",
+   "purpose": "Always-on monitor with dashboard (privacy risk, security risk, suspicious activity, unknown binaries, malware detected).",
+   "features": [
+    "Integrity baseline per package: APK changed without update, signer change, downgrade, installer change, icon hidden",
+    "Instant package broadcasts + 15 min rescans; notifications for new HIGH/CRITICAL findings",
+    "DNS-only local VPN: per-app DNS log with IOC / DGA / dynamic DNS / tunnel / Telegram-bot / tracker flags",
+    "Per-app traffic via NetworkStatsManager; uploads while screen off; hidden apps uploading",
+    "Pluggable risk engine (AppRules/DeviceRules): accessibility, admin, notification listener, IME, overlay, SMS, StrandHogg task affinity, masquerading, platform key, packers",
+    "VirusTotal hash lookups (rate limited, cached); file upload only after two-step confirmation",
+    "Stalkerware IOC feed download/import; JSON report export; signature-protected report provider for the Collector"
+   ],
+   "maturity": {
+    "level": "alpha",
+    "compiled": "Kotlin type-checked against the Android 14 framework jar (tools/kotlin_check.sh); full AGP build only in CI",
+    "tested": "JVM unit tests for RiskEngine, IocDb, HashPolicy, DnsPacket, DomainIntel",
+    "device_tested": false,
+    "notes": "UI, services, VPN and permissions flows have never run on a real device or emulator."
+   }
+  },
+  "collector": {
+   "name": "DroidCollector",
+   "kind": "android-app",
+   "path": "android/collector",
+   "package": "org.droidsuite.collector",
+   "purpose": "Consent-gated export of logs, dumpsys, settings, CA certs, usage/network history, app inventory, APKs and the Sentinel report into one hashed zip. No INTERNET permission.",
+   "features": [
+    "Explicit consent dialog + user-chosen destination (ACTION_CREATE_DOCUMENT)",
+    "Capability detection: READ_LOGS / DUMP (adb grants), usage access, Sentinel report",
+    "Every zip entry hashed into manifest.json with its source command",
+    "Hash policy: user + updated system APKs by default, all system APKs on request"
+   ],
+   "maturity": {
+    "level": "alpha",
+    "compiled": "type-checked like Sentinel",
+    "tested": "shares core unit tests; no collector-specific tests",
+    "device_tested": false,
+    "notes": "Output layout is exercised indirectly by droidtriage tests (synthetic evidence in the same layout)."
+   }
+  },
+  "droidtriage": {
+   "name": "droidtriage",
+   "kind": "python-cli",
+   "path": "analyzer",
+   "entrypoints": [
+    "droidtriage (pip install -e analyzer)",
+    "python3 -m droidtriage"
+   ],
+   "purpose": "Offline deep analysis of collector/adb evidence with HTML/JSON/CSV reports.",
+   "features": [
+    "Analyser registry: inventory, apk, virustotal, device, dumpsys, packages, logcat, network",
+    "Pure-python APK static analysis: binary manifest, DEX strings, v1/v2/v3 signer certs, payloads, packers, trackers, hosts",
+    "dumpsys parsing: roles, device owner, appops background use, jobs/alarms persistence, dropbox crashes, ADB keys, settings history",
+    "Logcat rules with keyword pre-filter; timeline with normalised timestamps",
+    "IOC feeds: stalkerware-indicators YAML, MVT STIX2, text lists",
+    "Baseline diff, standalone APK command, IOC check, VirusTotal commands, synthetic sample generator",
+    "Parallel APK analysis (--jobs)"
+   ],
+   "maturity": {
+    "level": "beta",
+    "tested": "stdlib unittest suite (unit + end-to-end CLI), Python 3.9 and 3.13; binary parsers validated on a real APK (PCAPdroid 1.7.2)",
+    "device_tested": false,
+    "notes": "Never run on evidence from a real phone; dumpsys regexes follow AOSP formats and may need tuning per vendor/version."
+   }
+  },
+  "adb_collect": {
+   "name": "adb_collect.sh",
+   "kind": "bash-script",
+   "path": "tools/adb_collect.sh",
+   "purpose": "Same evidence layout collected over adb (shell user: full dumpsys/logcat), optional bugreport for MVT.",
+   "maturity": {
+    "level": "alpha",
+    "tested": "bash -n syntax check only",
+    "device_tested": false
+   }
+  },
+  "kotlin_check": {
+   "name": "kotlin_check.sh",
+   "kind": "dev-tool",
+   "path": "tools/kotlin_check.sh",
+   "purpose": "Compile Android Kotlin sources and run JVM unit tests without the Android SDK (Robolectric android-all jar).",
+   "maturity": {
+    "level": "stable",
+    "tested": "used for every Kotlin change in this repo"
+   }
+  }
+ },
+ "extension_points": [
+  {
+   "name": "Python analyser",
+   "where": "analyzer/droidtriage/registry.py",
+   "how": "@analyzer(name, order, title) on fn(ctx); import the module in pipeline.py"
+  },
+  {
+   "name": "Logcat rule",
+   "where": "analyzer/droidtriage/logs.py RULES",
+   "how": "LogRule(id, tag_regex|None, msg_regex, severity, category, title, mitre, timeline, keys)"
+  },
+  {
+   "name": "APK code rule",
+   "where": "analyzer/droidtriage/apk.py API_RULES",
+   "how": "(id, needles ('=x' exact), severity, category, title, mitre)"
+  },
+  {
+   "name": "APK manifest rule",
+   "where": "analyzer/droidtriage/apk.py MANIFEST_RULES",
+   "how": "(id, actions set, severity, category, title, mitre)"
+  },
+  {
+   "name": "Kotlin app rule",
+   "where": "android/core/.../AppRules.kt ALL",
+   "how": "AppRule { a, ctx, out -> }"
+  },
+  {
+   "name": "Kotlin device rule",
+   "where": "android/core/.../DeviceRules.kt ALL",
+   "how": "DeviceRule { d, out -> }"
+  },
+  {
+   "name": "Playbook advice",
+   "where": "analyzer/droidtriage/playbook.py PLAYBOOK",
+   "how": "(id prefix, advice); first match wins"
+  },
+  {
+   "name": "IOC format",
+   "where": "analyzer/droidtriage/iocs.py IocDb.load_path + android/core/.../Ioc.kt",
+   "how": "add a parser by file extension"
+  },
+  {
+   "name": "Report section",
+   "where": "analyzer/droidtriage/templates/report.html",
+   "how": "data available as D (report.json); add a nav tab + section"
+  }
+ ],
+ "rules": {
+  "python": {
+   "analyzers": [
+    {
+     "name": "inventory",
+     "order": 10,
+     "title": "Package inventory",
+     "description": "packages.json (DroidCollector) or dumpsys package + pm list (adb)",
+     "function": "droidtriage.packages.load_packages"
+    },
+    {
+     "name": "apk",
+     "order": 20,
+     "title": "APK static analysis",
+     "description": "manifest, DEX strings, signing certs, payloads, packers, trackers",
+     "function": "droidtriage.apkscan.analyse_apks"
+    },
+    {
+     "name": "virustotal",
+     "order": 30,
+     "title": "VirusTotal",
+     "description": "hash lookups of user/sideloaded APKs (cached, rate limited)",
+     "function": "droidtriage.vt.run_vt"
+    },
+    {
+     "name": "device",
+     "order": 40,
+     "title": "Device posture",
+     "description": "getprop, settings, device_state: boot, root, patch, CA, proxy, ADB",
+     "function": "droidtriage.system.analyse_device"
+    },
+    {
+     "name": "dumpsys",
+     "order": 50,
+     "title": "dumpsys services",
+     "description": "accessibility, admins, owner, roles, appops, jobs, alarms, dropbox, adb keys",
+     "function": "droidtriage.system.analyse_dumpsys"
+    },
+    {
+     "name": "packages",
+     "order": 60,
+     "title": "Package rules",
+     "description": "IOC, signer, roles, masquerading, hidden apps, capability profile, install bursts",
+     "function": "droidtriage.packages.analyse_packages"
+    },
+    {
+     "name": "logcat",
+     "order": 70,
+     "title": "Logcat",
+     "description": "rule-based detections, background starts, domains in logs",
+     "function": "droidtriage.logs.analyse_logs"
+    },
+    {
+     "name": "network",
+     "order": 80,
+     "title": "Network",
+     "description": "Sentinel DNS log, per-app volume, endpoints embedded in APKs",
+     "function": "droidtriage.network.analyse_network"
+    }
+   ],
+   "logcat_rules": [
+    {
+     "id": "log.root.su",
+     "severity": "HIGH",
+     "category": "SECURITY",
+     "title": "Root manager / su activity",
+     "mitre": "T1404"
+    },
+    {
+     "id": "log.hook.framework",
+     "severity": "HIGH",
+     "category": "SECURITY",
+     "title": "Hooking framework active",
+     "mitre": "T1625.001"
+    },
+    {
+     "id": "log.frida",
+     "severity": "HIGH",
+     "category": "SUSPICIOUS",
+     "title": "Frida instrumentation traces",
+     "mitre": "T1625.001"
+    },
+    {
+     "id": "log.dexload.odd",
+     "severity": "MEDIUM",
+     "category": "SUSPICIOUS",
+     "title": "Code loaded from a writable location (dynamic payload)",
+     "mitre": "T1407"
+    },
+    {
+     "id": "log.admin.add",
+     "severity": "HIGH",
+     "category": "SECURITY",
+     "title": "Device administrator added",
+     "mitre": "T1626.001"
+    },
+    {
+     "id": "log.acc.bind",
+     "severity": "LOW",
+     "category": "PRIVACY",
+     "title": "Accessibility service bound/enabled",
+     "mitre": "T1516"
+    },
+    {
+     "id": "log.projection",
+     "severity": "MEDIUM",
+     "category": "PRIVACY",
+     "title": "Screen capture session (MediaProjection)",
+     "mitre": "T1513"
+    },
+    {
+     "id": "log.camera.open",
+     "severity": "INFO",
+     "category": "PRIVACY",
+     "title": "Camera opened",
+     "mitre": "T1512"
+    },
+    {
+     "id": "log.mic.record",
+     "severity": "INFO",
+     "category": "PRIVACY",
+     "title": "Microphone recording started",
+     "mitre": "T1429"
+    },
+    {
+     "id": "log.sms.send",
+     "severity": "MEDIUM",
+     "category": "PRIVACY",
+     "title": "SMS sent programmatically",
+     "mitre": "T1582"
+    },
+    {
+     "id": "log.ussd",
+     "severity": "MEDIUM",
+     "category": "SUSPICIOUS",
+     "title": "USSD code sent (balance/forwarding manipulation)",
+     "mitre": "T1616"
+    },
+    {
+     "id": "log.call.forward",
+     "severity": "MEDIUM",
+     "category": "SUSPICIOUS",
+     "title": "Call forwarding change",
+     "mitre": "T1616"
+    },
+    {
+     "id": "log.cert.install",
+     "severity": "HIGH",
+     "category": "SECURITY",
+     "title": "CA certificate installed",
+     "mitre": "T1638"
+    },
+    {
+     "id": "log.vpn.establish",
+     "severity": "LOW",
+     "category": "PRIVACY",
+     "title": "VPN session established",
+     "mitre": "T1638"
+    },
+    {
+     "id": "log.adb.session",
+     "severity": "LOW",
+     "category": "SECURITY",
+     "title": "ADB connection / pairing (expected if you collected over adb; check other dates)",
+     "mitre": null
+    },
+    {
+     "id": "log.clipboard.bg",
+     "severity": "MEDIUM",
+     "category": "PRIVACY",
+     "title": "App tried to read the clipboard in background",
+     "mitre": "T1414"
+    },
+    {
+     "id": "log.verifier",
+     "severity": "HIGH",
+     "category": "MALWARE",
+     "title": "Play Protect / verifier warning",
+     "mitre": "T1629.003"
+    },
+    {
+     "id": "log.selinux.denied",
+     "severity": "INFO",
+     "category": "SECURITY",
+     "title": "SELinux denials",
+     "mitre": null
+    },
+    {
+     "id": "log.fatal",
+     "severity": "INFO",
+     "category": "SECURITY",
+     "title": "Crashes / ANRs",
+     "mitre": null
+    },
+    {
+     "id": "log.tombstone",
+     "severity": "LOW",
+     "category": "SECURITY",
+     "title": "Native crash dump",
+     "mitre": null
+    },
+    {
+     "id": "log.perm.denial",
+     "severity": "INFO",
+     "category": "SECURITY",
+     "title": "Permission denials",
+     "mitre": null
+    },
+    {
+     "id": "log.wipe",
+     "severity": "HIGH",
+     "category": "SECURITY",
+     "title": "Wipe / factory reset requested",
+     "mitre": "T1630"
+    },
+    {
+     "id": "log.pkg.install",
+     "severity": "INFO",
+     "category": "UNKNOWN",
+     "title": "Package installation",
+     "mitre": null
+    },
+    {
+     "id": "log.component.disable",
+     "severity": "LOW",
+     "category": "SUSPICIOUS",
+     "title": "Component disabled (possible icon hiding)",
+     "mitre": "T1628.001"
+    },
+    {
+     "id": "log.debugger",
+     "severity": "MEDIUM",
+     "category": "SECURITY",
+     "title": "Debugger attached to an app",
+     "mitre": null
+    }
+   ],
+   "apk_code_rules": [
+    {
+     "id": "apk.dcl",
+     "severity": "MEDIUM",
+     "category": "SUSPICIOUS",
+     "title": "Loads code at runtime (DexClassLoader)",
+     "mitre": "T1407"
+    },
+    {
+     "id": "apk.dcl.mem",
+     "severity": "HIGH",
+     "category": "SUSPICIOUS",
+     "title": "Loads DEX from memory (fileless payload)",
+     "mitre": "T1407"
+    },
+    {
+     "id": "apk.exec.su",
+     "severity": "LOW",
+     "category": "SECURITY",
+     "title": "Executes shell commands (Runtime.exec + 'su' string)",
+     "mitre": "T1404"
+    },
+    {
+     "id": "apk.sms.send",
+     "severity": "MEDIUM",
+     "category": "PRIVACY",
+     "title": "Can send SMS programmatically",
+     "mitre": "T1582"
+    },
+    {
+     "id": "apk.sms.read",
+     "severity": "MEDIUM",
+     "category": "PRIVACY",
+     "title": "Reads the SMS database (content://sms)",
+     "mitre": "T1636.004"
+    },
+    {
+     "id": "apk.calllog.read",
+     "severity": "MEDIUM",
+     "category": "PRIVACY",
+     "title": "Reads call history",
+     "mitre": "T1636.002"
+    },
+    {
+     "id": "apk.screen.capture",
+     "severity": "MEDIUM",
+     "category": "PRIVACY",
+     "title": "Screen capture (MediaProjection)",
+     "mitre": "T1513"
+    },
+    {
+     "id": "apk.audio.record",
+     "severity": "LOW",
+     "category": "PRIVACY",
+     "title": "Records audio (AudioRecord)",
+     "mitre": "T1429"
+    },
+    {
+     "id": "apk.acc.gesture",
+     "severity": "MEDIUM",
+     "category": "SECURITY",
+     "title": "Injects taps/gestures via accessibility",
+     "mitre": "T1516"
+    },
+    {
+     "id": "apk.acc.global",
+     "severity": "LOW",
+     "category": "SECURITY",
+     "title": "Performs global actions via accessibility",
+     "mitre": "T1516"
+    },
+    {
+     "id": "apk.hide.icon",
+     "severity": "LOW",
+     "category": "SUSPICIOUS",
+     "title": "Can disable its own components (icon hiding)",
+     "mitre": "T1628.001"
+    },
+    {
+     "id": "apk.admin.wipe",
+     "severity": "MEDIUM",
+     "category": "SECURITY",
+     "title": "Device-admin wipe capability",
+     "mitre": "T1630"
+    },
+    {
+     "id": "apk.admin.lock",
+     "severity": "MEDIUM",
+     "category": "SECURITY",
+     "title": "Device-admin lock / password reset",
+     "mitre": "T1629"
+    },
+    {
+     "id": "apk.ids",
+     "severity": "LOW",
+     "category": "PRIVACY",
+     "title": "Reads SIM subscriber id (IMSI)",
+     "mitre": "T1426"
+    },
+    {
+     "id": "apk.clipboard",
+     "severity": "LOW",
+     "category": "PRIVACY",
+     "title": "Reads clipboard",
+     "mitre": "T1414"
+    },
+    {
+     "id": "apk.pkg.discovery",
+     "severity": "INFO",
+     "category": "PRIVACY",
+     "title": "Enumerates installed apps",
+     "mitre": "T1418"
+    },
+    {
+     "id": "apk.c2.telegram",
+     "severity": "HIGH",
+     "category": "SUSPICIOUS",
+     "title": "Embedded Telegram Bot API endpoint (common exfil channel)",
+     "mitre": "T1481"
+    },
+    {
+     "id": "apk.c2.discord",
+     "severity": "HIGH",
+     "category": "SUSPICIOUS",
+     "title": "Embedded Discord webhook (exfil channel)",
+     "mitre": "T1481"
+    },
+    {
+     "id": "apk.c2.pastebin",
+     "severity": "MEDIUM",
+     "category": "SUSPICIOUS",
+     "title": "Fetches pastebin raw content (dead-drop resolver)",
+     "mitre": "T1481"
+    },
+    {
+     "id": "apk.evasion.emu",
+     "severity": "LOW",
+     "category": "SUSPICIOUS",
+     "title": "Emulator checks (sandbox evasion)",
+     "mitre": "T1633"
+    },
+    {
+     "id": "apk.hooking",
+     "severity": "LOW",
+     "category": "SUSPICIOUS",
+     "title": "References Xposed hooking framework",
+     "mitre": "T1625.001"
+    },
+    {
+     "id": "apk.installer",
+     "severity": "LOW",
+     "category": "SUSPICIOUS",
+     "title": "Installs other packages (PackageInstaller)",
+     "mitre": "T1407"
+    },
+    {
+     "id": "apk.keylog.acc",
+     "severity": "MEDIUM",
+     "category": "PRIVACY",
+     "title": "Watches text-change accessibility events (keylogging)",
+     "mitre": "T1417.001"
+    },
+    {
+     "id": "apk.notif.read",
+     "severity": "LOW",
+     "category": "PRIVACY",
+     "title": "Reads notifications",
+     "mitre": "T1517"
+    },
+    {
+     "id": "apk.cam",
+     "severity": "INFO",
+     "category": "PRIVACY",
+     "title": "Uses the camera",
+     "mitre": "T1512"
+    },
+    {
+     "id": "apk.location",
+     "severity": "INFO",
+     "category": "PRIVACY",
+     "title": "Tracks location",
+     "mitre": "T1430"
+    }
+   ],
+   "apk_manifest_rules": [
+    {
+     "id": "apk.call.monitor",
+     "severity": "LOW",
+     "category": "PRIVACY",
+     "title": "Monitors phone calls (PHONE_STATE / NEW_OUTGOING_CALL receiver)",
+     "mitre": "T1616"
+    },
+    {
+     "id": "apk.boot",
+     "severity": "INFO",
+     "category": "SUSPICIOUS",
+     "title": "Starts at boot (BOOT_COMPLETED receiver)",
+     "mitre": "T1624.001"
+    },
+    {
+     "id": "apk.admin.decl",
+     "severity": "LOW",
+     "category": "SECURITY",
+     "title": "Declares a device administrator",
+     "mitre": "T1626.001"
+    },
+    {
+     "id": "apk.acc.decl",
+     "severity": "LOW",
+     "category": "PRIVACY",
+     "title": "Declares an accessibility service",
+     "mitre": "T1516"
+    },
+    {
+     "id": "apk.secret.code",
+     "severity": "MEDIUM",
+     "category": "SUSPICIOUS",
+     "title": "Reacts to dialer secret codes (hidden-app re-launch trick)",
+     "mitre": "T1628.001"
+    }
+   ],
+   "trackers": [
+    "Adjust",
+    "Amplitude",
+    "AppLovin",
+    "AppsFlyer",
+    "Branch",
+    "Chartboost",
+    "Facebook Analytics",
+    "Facebook Audience Network",
+    "Firebase Crashlytics",
+    "Flurry",
+    "Google AdMob",
+    "Google Firebase Analytics",
+    "Huawei Analytics",
+    "InMobi",
+    "Kochava",
+    "Mintegral",
+    "Mixpanel",
+    "MoPub",
+    "OneSignal",
+    "Pangle (ByteDance)",
+    "Segment",
+    "Sentry",
+    "StartApp",
+    "Tencent Bugly",
+    "Umeng",
+    "Unity Ads",
+    "Vungle",
+    "Xiaomi Push",
+    "Yandex AppMetrica",
+    "ironSource"
+   ],
+   "packers": [
+    "Alibaba",
+    "Baidu",
+    "Bangcle",
+    "Bangcle/SecNeo",
+    "NQ Shield",
+    "Qihoo 360 Jiagu",
+    "Tencent Legu",
+    "Unknown packer",
+    "ijiami"
+   ],
+   "playbook_prefixes": [
+    "ioc.",
+    "vt.",
+    "cert.platform",
+    "acc.",
+    "nls.",
+    "admin.",
+    "device.owner",
+    "hidden",
+    "stalkerware",
+    "mask.",
+    "task.hijack",
+    "sms.",
+    "dev.userca",
+    "dev.proxy",
+    "dev.root",
+    "dev.vb",
+    "dev.patch",
+    "dev.adb",
+    "dev.nolock",
+    "crash.privileged",
+    "dns.",
+    "net.",
+    "apk.payload",
+    "apk.encrypted",
+    "apk.c2",
+    "persist.",
+    "install.cluster",
+    "appops.bg",
+    "log.",
+    "install.untrusted"
+   ],
+   "finding_ids": [
+    "acc.declared",
+    "acc.enabled",
+    "adb.keys",
+    "admin.active",
+    "apk.acc.decl",
+    "apk.acc.gesture",
+    "apk.acc.global",
+    "apk.admin.decl",
+    "apk.admin.lock",
+    "apk.admin.wipe",
+    "apk.audio.record",
+    "apk.boot",
+    "apk.c2.discord",
+    "apk.c2.pastebin",
+    "apk.c2.telegram",
+    "apk.call.monitor",
+    "apk.calllog.read",
+    "apk.cam",
+    "apk.clipboard",
+    "apk.dcl",
+    "apk.dcl.mem",
+    "apk.evasion.emu",
+    "apk.exec.su",
+    "apk.hide.icon",
+    "apk.hooking",
+    "apk.ids",
+    "apk.installer",
+    "apk.ioc.domain",
+    "apk.ioc.ip",
+    "apk.keylog.acc",
+    "apk.location",
+    "apk.mismatch",
+    "apk.notif.read",
+    "apk.pkg.discovery",
+    "apk.screen.capture",
+    "apk.secret.code",
+    "apk.signer.mismatch",
+    "apk.sms.read",
+    "apk.sms.send",
+    "apk.trackers",
+    "app.debuggable",
+    "appops.bg",
+    "autofill.default",
+    "baseline.binary",
+    "baseline.new",
+    "baseline.signer",
+    "cert.debug",
+    "cert.platform",
+    "crash.privileged",
+    "dev.adb",
+    "dev.adbroot",
+    "dev.adbsecure",
+    "dev.adbwifi",
+    "dev.alwaysonvpn",
+    "dev.buildtype",
+    "dev.crypto",
+    "dev.debuggable",
+    "dev.eol",
+    "dev.localtmp",
+    "dev.nolock",
+    "dev.patch",
+    "dev.privatedns",
+    "dev.proxy",
+    "dev.root",
+    "dev.sdcardapk",
+    "dev.selinux",
+    "dev.testkeys",
+    "dev.unknownsources",
+    "dev.unlocked",
+    "dev.userca",
+    "dev.vb",
+    "dev.verifier",
+    "dev.verifier.adb",
+    "dev.verity",
+    "dev.vpn",
+    "device.owner",
+    "dns.ioc",
+    "dropper",
+    "hidden",
+    "ime.declared",
+    "ime.default",
+    "incall.provider",
+    "install.cluster",
+    "install.untrusted",
+    "ioc.cert",
+    "ioc.hash",
+    "ioc.package",
+    "log.acc.bind",
+    "log.adb.session",
+    "log.admin.add",
+    "log.bgstart",
+    "log.call.forward",
+    "log.camera.open",
+    "log.cert.install",
+    "log.clipboard.bg",
+    "log.component.disable",
+    "log.debugger",
+    "log.dexload.odd",
+    "log.fatal",
+    "log.frida",
+    "log.hook.framework",
+    "log.ioc.domain",
+    "log.mic.record",
+    "log.perm.denial",
+    "log.pkg.install",
+    "log.projection",
+    "log.root.su",
+    "log.selinux.denied",
+    "log.sms.send",
+    "log.tombstone",
+    "log.ussd",
+    "log.verifier",
+    "log.vpn.establish",
+    "log.wipe",
+    "mask.label",
+    "mask.name",
+    "mask.pkg",
+    "net.hidden.tx",
+    "net.unused.tx",
+    "nls.enabled",
+    "overlay",
+    "overlay.acc",
+    "packer",
+    "persist.sched",
+    "profile.owner",
+    "recent.sideload",
+    "role.sideloaded",
+    "sdk.old",
+    "sms.default",
+    "sms.full",
+    "stalkerware.profile",
+    "sys.debuggable",
+    "sys.update.untrusted",
+    "task.hijack",
+    "task.reparent",
+    "uid.system",
+    "users.multi",
+    "vpn.provider",
+    "vt.low",
+    "vt.malicious"
+   ]
+  },
+  "kotlin": {
+   "app_rules": [
+    "malware",
+    "firmware",
+    "roles",
+    "taskHijack",
+    "masquerade",
+    "surveillance",
+    "hygiene"
+   ],
+   "device_rules": [
+    "integrity",
+    "access",
+    "network"
+   ],
+   "finding_ids": [
+    "acc.declared",
+    "acc.enabled",
+    "admin.active",
+    "app.debuggable",
+    "autofill.default",
+    "cert.debug",
+    "cert.platform",
+    "dev.adb",
+    "dev.adbwifi",
+    "dev.eol",
+    "dev.nolock",
+    "dev.patch",
+    "dev.privatedns",
+    "dev.proxy",
+    "dev.root",
+    "dev.selinux",
+    "dev.unlocked",
+    "dev.userca",
+    "dev.vb",
+    "dev.verifier",
+    "dev.vpn",
+    "dropper",
+    "hidden",
+    "ime.declared",
+    "ime.default",
+    "incall.provider",
+    "install.untrusted",
+    "ioc.cert",
+    "ioc.hash",
+    "ioc.package",
+    "mask.label",
+    "mask.name",
+    "mask.pkg",
+    "nls.enabled",
+    "overlay",
+    "overlay.acc",
+    "packer",
+    "sdk.old",
+    "sms.full",
+    "stalkerware.profile",
+    "sys.debuggable",
+    "sys.update.untrusted",
+    "task.hijack",
+    "task.reparent",
+    "uid.system",
+    "vpn.provider",
+    "vt.low",
+    "vt.malicious"
+   ],
+   "sentinel_event_types": [
+    "apk.reinstalled",
+    "apk.tampered",
+    "baseline",
+    "cert.changed",
+    "cert.rotation",
+    "downgrade",
+    "icon.hidden",
+    "install",
+    "installer.changed",
+    "net.bgupload",
+    "net.first",
+    "net.hidden",
+    "uninstall",
+    "update"
+   ]
+  },
+  "parity_gap_kotlin_only": []
+ },
+ "cli": {
+  "program": "droidtriage",
+  "global": [
+   {
+    "flags": [
+     "-q",
+     "--quiet"
+    ],
+    "help": "only print results and errors",
+    "default": false,
+    "choices": null
+   },
+   {
+    "flags": [
+     "-v",
+     "--verbose"
+    ],
+    "help": "debug output (timings, skipped items)",
+    "default": false,
+    "choices": null
+   },
+   {
+    "flags": [
+     "--no-color"
+    ],
+    "help": "disable ANSI colours (also: NO_COLOR env var)",
+    "default": false,
+    "choices": null
+   },
+   {
+    "flags": [
+     "--version"
+    ],
+    "help": "show program's version number and exit",
+    "default": "==SUPPRESS==",
+    "choices": null
+   }
+  ],
+  "commands": [
+   {
+    "command": "analyze",
+    "help": "analyse an evidence zip or folder",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "evidence"
+      ],
+      "help": "DroidCollector .zip, extracted folder, or adb_collect.sh folder",
+      "default": null,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-o",
+       "--out"
+      ],
+      "help": "output directory (default: <evidence>_report)",
+      "default": null,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-f",
+       "--format"
+      ],
+      "help": "comma list of html,json,csv (default: all)",
+      "default": "html,json,csv",
+      "choices": null
+     },
+     {
+      "flags": [
+       "--open"
+      ],
+      "help": "open report.html in the browser when done",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--json"
+      ],
+      "help": "print the summary + findings as JSON on stdout",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--top"
+      ],
+      "help": "findings shown in the console summary (default 15)",
+      "default": 15,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--min-severity"
+      ],
+      "help": "lowest severity shown in the console (default HIGH)",
+      "default": "HIGH",
+      "choices": [
+       "INFO",
+       "LOW",
+       "MEDIUM",
+       "HIGH",
+       "CRITICAL"
+      ]
+     },
+     {
+      "flags": [
+       "--fail-on"
+      ],
+      "help": "exit 1 on HIGH / 2 on malware (high), only 2 (malware), or always 0 (never)",
+      "default": "high",
+      "choices": [
+       "never",
+       "high",
+       "malware"
+      ]
+     },
+     {
+      "flags": [
+       "--ioc"
+      ],
+      "help": "extra IOC file or folder (repeatable)",
+      "default": "[]",
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-default-iocs"
+      ],
+      "help": "do not load <repo>/analyzer/iocs",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--trusted-installer"
+      ],
+      "help": "treat this installer as a trusted store (repeatable)",
+      "default": "[]",
+      "choices": null
+     },
+     {
+      "flags": [
+       "--baseline"
+      ],
+      "help": "previous report.json: flag new/changed apps, mark NEW findings",
+      "default": null,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--vt-key"
+      ],
+      "help": "API key (default: $VT_API_KEY)",
+      "default": "$VT_API_KEY",
+      "choices": null
+     },
+     {
+      "flags": [
+       "--vt-scope"
+      ],
+      "help": "which apps to look up (default user)",
+      "default": "user",
+      "choices": [
+       "sideloaded",
+       "user",
+       "all"
+      ]
+     },
+     {
+      "flags": [
+       "--vt-max"
+      ],
+      "help": "max lookups this run (free tier: 500/day)",
+      "default": 200,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--vt-upload"
+      ],
+      "help": "UPLOAD this package's APK after typed confirmation",
+      "default": "[]",
+      "choices": null
+     },
+     {
+      "flags": [
+       "--yes"
+      ],
+      "help": "skip the typed confirmation of --vt-upload (scripts)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-j",
+       "--jobs"
+      ],
+      "help": "parallel APK workers (default min(4, CPUs))",
+      "default": "min(4, CPUs)",
+      "choices": null
+     },
+     {
+      "flags": [
+       "--max-apk-mb"
+      ],
+      "help": "skip static analysis of larger APKs (default 300)",
+      "default": 300,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--skip"
+      ],
+      "help": "comma list of analysers to skip (see `droidtriage rules`)",
+      "default": "",
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "apk",
+    "help": "static analysis of standalone APK files",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "files"
+      ],
+      "help": "APK files",
+      "default": null,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--json"
+      ],
+      "help": "full JSON result on stdout",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--ioc"
+      ],
+      "help": "extra IOC file or folder",
+      "default": "[]",
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "diff",
+    "help": "compare two report.json files",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "old"
+      ],
+      "help": "",
+      "default": null,
+      "choices": null
+     },
+     {
+      "flags": [
+       "new"
+      ],
+      "help": "",
+      "default": null,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--json"
+      ],
+      "help": "JSON on stdout",
+      "default": false,
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "iocs",
+    "help": "manage IOC feeds",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "iocs update",
+    "help": "download stalkerware-indicators + MVT STIX2 feeds",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--dest"
+      ],
+      "help": "target folder (default <repo>/analyzer/iocs)",
+      "default": "default IOC folder",
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "iocs stats",
+    "help": "show loaded feeds and counts",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--ioc"
+      ],
+      "help": "",
+      "default": "[]",
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "iocs check",
+    "help": "check packages / domains / hashes / IPs against the feeds",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "values"
+      ],
+      "help": "",
+      "default": null,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--ioc"
+      ],
+      "help": "",
+      "default": "[]",
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "vt",
+    "help": "VirusTotal lookups / confirmed uploads",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "vt lookup",
+    "help": "look up SHA-256 hashes (or files: only their hash is sent)",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "items"
+      ],
+      "help": "",
+      "default": null,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--vt-key"
+      ],
+      "help": "",
+      "default": "$VT_API_KEY",
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "vt upload",
+    "help": "UPLOAD a file (typed confirmation required)",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "file"
+      ],
+      "help": "",
+      "default": null,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--vt-key"
+      ],
+      "help": "",
+      "default": "$VT_API_KEY",
+      "choices": null
+     },
+     {
+      "flags": [
+       "--yes"
+      ],
+      "help": "skip the typed confirmation",
+      "default": false,
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "sample",
+    "help": "write synthetic evidence with planted indicators",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "out"
+      ],
+      "help": "output .zip",
+      "default": null,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--apk"
+      ],
+      "help": "real APK to embed so static analysis runs too",
+      "default": null,
+      "choices": null
+     }
+    ]
+   },
+   {
+    "command": "rules",
+    "help": "list analysers and detection rules",
+    "arguments": [
+     {
+      "flags": [
+       "-q",
+       "--quiet"
+      ],
+      "help": "only print results and errors",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "-v",
+       "--verbose"
+      ],
+      "help": "debug output (timings, skipped items)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--no-color"
+      ],
+      "help": "disable ANSI colours (also: NO_COLOR env var)",
+      "default": false,
+      "choices": null
+     },
+     {
+      "flags": [
+       "--json"
+      ],
+      "help": "",
+      "default": false,
+      "choices": null
+     }
+    ]
+   }
+  ],
+  "exit_codes": {
+   "0": "nothing above --fail-on",
+   "1": "HIGH findings",
+   "2": "malware indicators / IOC match",
+   "3": "usage or I/O error",
+   "130": "interrupted"
+  }
+ },
+ "android": {
+  "collector": {
+   "permissions": [
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.DUMP",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.GET_ACCOUNTS",
+    "android.permission.PACKAGE_USAGE_STATS",
+    "android.permission.QUERY_ALL_PACKAGES",
+    "android.permission.READ_LOGS",
+    "org.droidsuite.permission.READ_REPORT"
+   ],
+   "defines_permissions": [],
+   "components": [
+    "activity:.MainActivity"
+   ]
+  },
+  "core": {
+   "permissions": [],
+   "defines_permissions": [],
+   "components": []
+  },
+  "sentinel": {
+   "permissions": [
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+    "android.permission.INTERNET",
+    "android.permission.PACKAGE_USAGE_STATS",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.QUERY_ALL_PACKAGES",
+    "android.permission.RECEIVE_BOOT_COMPLETED"
+   ],
+   "defines_permissions": [
+    "org.droidsuite.permission.READ_REPORT"
+   ],
+   "components": [
+    "activity:.MainActivity",
+    "provider:.ReportProvider",
+    "receiver:.BootReceiver",
+    "service:.DnsVpnService",
+    "service:.MonitorService"
+   ]
+  }
+ },
+ "tests": {
+  "python": {
+   "files": [
+    "analyzer/tests/test_apk.py",
+    "analyzer/tests/test_evidence_iocs.py",
+    "analyzer/tests/test_logs_network.py",
+    "analyzer/tests/test_model.py",
+    "analyzer/tests/test_packages_system.py",
+    "analyzer/tests/test_parity.py",
+    "analyzer/tests/test_vt_report_cli.py"
+   ],
+   "count": 51,
+   "run": "cd analyzer && python3 -W error::ResourceWarning -m unittest discover -s tests -t .",
+   "optional": "DROIDTRIAGE_TEST_APK=<real.apk> enables binary-parser tests"
+  },
+  "kotlin": {
+   "files": [
+    "android/core/src/test/java/org/droidsuite/core/Fixtures.kt",
+    "android/core/src/test/java/org/droidsuite/core/IocDbTest.kt",
+    "android/core/src/test/java/org/droidsuite/core/RiskEngineTest.kt",
+    "android/sentinel/src/test/java/org/droidsuite/sentinel/DnsPacketTest.kt",
+    "android/sentinel/src/test/java/org/droidsuite/sentinel/DomainIntelTest.kt"
+   ],
+   "count": 16,
+   "run": "tools/kotlin_check.sh  (or: cd android && ./gradlew test)"
+  },
+  "ci": [
+   ".github/workflows/ci.yml"
+  ]
+ },
+ "skills": [
+  {
+   "name": "fta-add-detection-rule",
+   "path": ".claude/skills/fta-add-detection-rule/SKILL.md",
+   "description": "Add or change a detection in this repo (Python droidtriage analyser/rule, Kotlin DroidSentinel AppRule/DeviceRule, logcat rule, APK code or manifest rule, IOC format, playbook advice) while keeping ids, tests, parity and the project index consistent. Use for any \"detect X\", \"flag Y\", \"new rule\", \"new analyser\" or false-positive tuning request."
+  },
+  {
+   "name": "fta-android-internals",
+   "path": ".claude/skills/fta-android-internals/SKILL.md",
+   "description": "Reference on the Android data formats and platform limits this repo relies on — evidence zip layout, dumpsys/logcat/appops formats, binary manifest/DEX/signing-block parsing, timestamps, IOC feed formats, and what apps can or cannot see without root. Use when parsing a new evidence source, debugging a parser, or deciding whether a detection is feasible on device vs offline."
+  },
+  {
+   "name": "fta-triage",
+   "path": ".claude/skills/fta-triage/SKILL.md",
+   "description": "Analyse Android phone evidence (DroidCollector zip, adb_collect.sh folder, or a single APK) with droidtriage and explain the results. Use when the user wants to check a phone for stalkerware/spyware/malware, analyse a collection zip, compare two collections, check an APK, or interpret report.html / report.json from this repo."
+  },
+  {
+   "name": "fta-verify-without-sdk",
+   "path": ".claude/skills/fta-verify-without-sdk/SKILL.md",
+   "description": "Build, test and verify this repo in a restricted sandbox (no Android SDK, dl.google.com blocked, Maven Central rate limits, no device). Use before committing changes to android/ or analyzer/, when a Gradle/Android build is impossible, or when checking the HTML report renders."
+  }
+ ],
+ "docs": [
+  {
+   "path": "CLAUDE.md",
+   "title": "FTA – Forensic Triage for Android"
+  },
+  {
+   "path": "README.md",
+   "title": "FTA – Forensic Triage for Android"
+  },
+  {
+   "path": "analyzer/README.md",
+   "title": "droidtriage"
+  },
+  {
+   "path": "docs/GUIDE.md",
+   "title": "FTA user guide (Forensic Triage for Android)"
+  },
+  {
+   "path": "docs/RISK_MATRIX.md",
+   "title": "Android risk coverage matrix"
+  }
+ ],
+ "conventions": {
+  "finding_id": "family.rule, lowercase, stable; dev.* device-level; log.* logcat; apk.* static analysis",
+  "severity": "CRITICAL confirmed compromise; HIGH abusable access or tampering; MEDIUM suspicious; LOW hygiene; INFO context",
+  "categories": [
+   "PRIVACY",
+   "SECURITY",
+   "SUSPICIOUS",
+   "UNKNOWN",
+   "MALWARE"
+  ],
+  "scores": "security = sum(weights of SECURITY+MALWARE findings) capped 100 with CRITICAL 40 / HIGH 15 / MEDIUM 5 / LOW 1; privacy = 0.6*max + 0.4*avg(top10 user-app permission scores)",
+  "tests": "plain-text/JSON fixtures; real APK via DROIDTRIAGE_TEST_APK; no fabricated binaries"
+ },
+ "known_limitations": [
+  "Android apps never built with AGP in this environment nor run on a device: first CI build/device run may surface issues (resources, manifest merger, runtime permissions, OEM battery killers)",
+  "DNS monitor is bypassed by DoH/hard-coded resolvers and Strict Private DNS; NetworkStats attribution lags minutes",
+  "Logcat retention is short; dumpsys formats vary by Android version/OEM",
+  "No detection of kernel/firmware implants, zero-click exploits without traces, cloud-account or carrier-side attacks",
+  "Malwarebytes column of RISK_MATRIX is based on public documentation, not tested",
+  "Python 3.9 is the floor; Windows is untested for adb_collect.sh (use WSL/Git Bash)"
+ ],
+ "roadmap": [
+  "First real-device validation of both apps; fix issues found",
+  "Instrumented/Robolectric tests for Store, Scanner diff and Collector layout",
+  "Vendor-specific dumpsys parser fixtures (Samsung, Xiaomi) from real collections",
+  "Optional MVT interoperability (export findings as STIX2 / read MVT JSON)",
+  "Localised UI strings (currently English, built in code)"
+ ],
+ "history": [
+  {
+   "phase": "v1.0",
+   "summary": "Initial build: DroidSentinel, DroidCollector, droidtriage, adb_collect.sh, GUIDE, RISK_MATRIX, sample report. Analyzer tested on synthetic evidence + one real APK; Kotlin type-checked against android-all."
+  },
+  {
+   "phase": "v1.1 review",
+   "summary": "Analyzer: analyser registry, subcommand CLI, logcat pre-filter (2.7x faster), parallel APK analysis, timestamp normalisation, fixed file-handle leak, 51 tests incl. end-to-end and parity. Android: pluggable rule engine, DB indexes (DNS first-seen query was a full scan per packet), HashPolicy (first scan no longer hashes all system APKs), JVM unit tests, kotlin_check harness. Skills, CLAUDE.md, project index, CI with tests."
+  }
+ ],
+ "files": [
+  {
+   "path": ".claude/skills/fta-add-detection-rule/SKILL.md",
+   "language": "markdown",
+   "lines": 46,
+   "sha256": "c17997417198b1dc",
+   "summary": "Add or change a detection in this repo (Python droidtriage analyser/rule, Kotlin DroidSentinel AppRule/DeviceRule, logcat rule, APK code or manifest rule, IOC format, playbook advice) while keeping id"
+  },
+  {
+   "path": ".claude/skills/fta-android-internals/SKILL.md",
+   "language": "markdown",
+   "lines": 66,
+   "sha256": "77a45732864e1d4b",
+   "summary": "Reference on the Android data formats and platform limits this repo relies on — evidence zip layout, dumpsys/logcat/appops formats, binary manifest/DEX/signing-block parsing, timestamps, IOC feed form"
+  },
+  {
+   "path": ".claude/skills/fta-triage/SKILL.md",
+   "language": "markdown",
+   "lines": 50,
+   "sha256": "712358149c3a0230",
+   "summary": "Analyse Android phone evidence (DroidCollector zip, adb_collect.sh folder, or a single APK) with droidtriage and explain the results. Use when the user wants to check a phone for stalkerware/spyware/m"
+  },
+  {
+   "path": ".claude/skills/fta-verify-without-sdk/SKILL.md",
+   "language": "markdown",
+   "lines": 51,
+   "sha256": "0f37613fbb99f0a5",
+   "summary": "Build, test and verify this repo in a restricted sandbox (no Android SDK, dl.google.com blocked, Maven Central rate limits, no device). Use before committing changes to android/ or analyzer/, when a G"
+  },
+  {
+   "path": ".github/workflows/ci.yml",
+   "language": "yaml",
+   "lines": 70,
+   "sha256": "cc1917525e683088",
+   "summary": "Workflow: CI"
+  },
+  {
+   "path": "CLAUDE.md",
+   "language": "markdown",
+   "lines": 31,
+   "sha256": "8f3cbeffbedecd13",
+   "summary": "FTA – Forensic Triage for Android"
+  },
+  {
+   "path": "README.md",
+   "language": "markdown",
+   "lines": 67,
+   "sha256": "9726cf87f7ebb0d9",
+   "summary": "FTA – Forensic Triage for Android"
+  },
+  {
+   "path": "analyzer/README.md",
+   "language": "markdown",
+   "lines": 16,
+   "sha256": "31cfbe3474dbd12a",
+   "summary": "droidtriage"
+  },
+  {
+   "path": "analyzer/droidtriage/__init__.py",
+   "language": "python",
+   "lines": 14,
+   "sha256": "0237a667980c5205",
+   "summary": "droidtriage – offline analysis of DroidCollector / adb_collect.sh Android evidence."
+  },
+  {
+   "path": "analyzer/droidtriage/__main__.py",
+   "language": "python",
+   "lines": 7,
+   "sha256": "4c9b9a66382a48c7",
+   "summary": "``python3 -m droidtriage`` entry point (see :mod:`droidtriage.cli`)."
+  },
+  {
+   "path": "analyzer/droidtriage/apk.py",
+   "language": "python",
+   "lines": 479,
+   "sha256": "e3a6e207c1a10866",
+   "summary": "Pure-python static APK analysis: binary manifest, DEX strings, signing certs, payloads."
+  },
+  {
+   "path": "analyzer/droidtriage/apkscan.py",
+   "language": "python",
+   "lines": 116,
+   "sha256": "ac5a3ba5d0962ca9",
+   "summary": "Static analysis of every APK in the evidence (``apks/<package>/*.apk``), optionally in parallel."
+  },
+  {
+   "path": "analyzer/droidtriage/baseline.py",
+   "language": "python",
+   "lines": 53,
+   "sha256": "69de2a3ae227853b",
+   "summary": "Compare an analysis with a previous ``report.json`` (``--baseline`` / ``droidtriage diff``)."
+  },
+  {
+   "path": "analyzer/droidtriage/cli.py",
+   "language": "python",
+   "lines": 455,
+   "sha256": "79a6108d6b8e7add",
+   "summary": "Command-line interface."
+  },
+  {
+   "path": "analyzer/droidtriage/console.py",
+   "language": "python",
+   "lines": 75,
+   "sha256": "bc7ad8447c1c68ab",
+   "summary": "Terminal output helpers: colours (auto-disabled when not a TTY or NO_COLOR is set), progress, tables."
+  },
+  {
+   "path": "analyzer/droidtriage/evidence.py",
+   "language": "python",
+   "lines": 95,
+   "sha256": "d85a5a9916c68523",
+   "summary": "Uniform read access to a collector zip, an extracted directory, or an adb_collect.sh folder."
+  },
+  {
+   "path": "analyzer/droidtriage/iocs.py",
+   "language": "python",
+   "lines": 193,
+   "sha256": "3eab26ab70e492e7",
+   "summary": "Indicator-of-compromise loading."
+  },
+  {
+   "path": "analyzer/droidtriage/logs.py",
+   "language": "python",
+   "lines": 190,
+   "sha256": "0700d57223384233",
+   "summary": "Logcat analysis: rule-based detections, per-package counters and timeline extraction."
+  },
+  {
+   "path": "analyzer/droidtriage/model.py",
+   "language": "python",
+   "lines": 182,
+   "sha256": "1d4275f0759109b8",
+   "summary": "Shared data model: severities, findings, timeline events, options and the analysis context."
+  },
+  {
+   "path": "analyzer/droidtriage/network.py",
+   "language": "python",
+   "lines": 148,
+   "sha256": "ecd71a0d2861baf7",
+   "summary": "Network evidence: DroidSentinel DNS log/events, per-app traffic volume, hard-coded endpoints."
+  },
+  {
+   "path": "analyzer/droidtriage/packages.py",
+   "language": "python",
+   "lines": 351,
+   "sha256": "846367e90217b413",
+   "summary": "Package inventory normalisation (collector JSON or adb dumpsys) and package-level rules."
+  },
+  {
+   "path": "analyzer/droidtriage/pipeline.py",
+   "language": "python",
+   "lines": 38,
+   "sha256": "7b386fd45a016e0c",
+   "summary": "Runs every registered analyser in order, then computes the derived results."
+  },
+  {
+   "path": "analyzer/droidtriage/playbook.py",
+   "language": "python",
+   "lines": 45,
+   "sha256": "a211904ee33aae7d",
+   "summary": "What to do next, per finding family (matched by id prefix)."
+  },
+  {
+   "path": "analyzer/droidtriage/registry.py",
+   "language": "python",
+   "lines": 49,
+   "sha256": "aac0db64c16a80d1",
+   "summary": "Analyser registry."
+  },
+  {
+   "path": "analyzer/droidtriage/report.py",
+   "language": "python",
+   "lines": 116,
+   "sha256": "321b61311becaad4",
+   "summary": "Report writers: HTML dashboard, JSON, CSV."
+  },
+  {
+   "path": "analyzer/droidtriage/sample.py",
+   "language": "python",
+   "lines": 110,
+   "sha256": "ebf1cb8d5dac30f1",
+   "summary": "Synthetic DroidCollector archive with planted indicators, for the demo and the test-suite."
+  },
+  {
+   "path": "analyzer/droidtriage/system.py",
+   "language": "python",
+   "lines": 317,
+   "sha256": "18930b47e85dc48e",
+   "summary": "Device posture (props/settings) and dumpsys parsers."
+  },
+  {
+   "path": "analyzer/droidtriage/templates/report.html",
+   "language": "html",
+   "lines": 126,
+   "sha256": "6393b5b2ecf805bb",
+   "summary": "Droid Triage Report"
+  },
+  {
+   "path": "analyzer/droidtriage/vt.py",
+   "language": "python",
+   "lines": 144,
+   "sha256": "e1fb09b930153e56",
+   "summary": "VirusTotal v3 client and the ``virustotal`` analyser."
+  },
+  {
+   "path": "analyzer/iocs/README.md",
+   "language": "markdown",
+   "lines": 8,
+   "sha256": "19d454b1886c83cf",
+   "summary": "IOC feeds"
+  },
+  {
+   "path": "analyzer/iocs/custom_example.txt",
+   "language": "text",
+   "lines": 4,
+   "sha256": "86d4c1d3d7d0b582",
+   "summary": "Example custom IOC list (type:value lines)"
+  },
+  {
+   "path": "analyzer/pyproject.toml",
+   "language": "toml",
+   "lines": 21,
+   "sha256": "6f7a5ffa0fc7da23",
+   "summary": "Python packaging: droidtriage console script, stdlib only"
+  },
+  {
+   "path": "analyzer/tests/__init__.py",
+   "language": "python",
+   "lines": 0,
+   "sha256": "e3b0c44298fc1c14",
+   "summary": "Package marker"
+  },
+  {
+   "path": "analyzer/tests/helpers.py",
+   "language": "python",
+   "lines": 68,
+   "sha256": "8a9c8bf73196b39d",
+   "summary": "Test helpers: build tiny evidence folders from dicts and run single analysers."
+  },
+  {
+   "path": "analyzer/tests/test_apk.py",
+   "language": "python",
+   "lines": 88,
+   "sha256": "80dfb21d27def572",
+   "summary": "APK analysis tests."
+  },
+  {
+   "path": "analyzer/tests/test_evidence_iocs.py",
+   "language": "python",
+   "lines": 78,
+   "sha256": "a1ec08b379c1ce5e",
+   "summary": "Evidence access (zip/folder layouts) and IOC feed parsing (stalkerware YAML, STIX2, text)."
+  },
+  {
+   "path": "analyzer/tests/test_logs_network.py",
+   "language": "python",
+   "lines": 99,
+   "sha256": "d937a5e895707cd9",
+   "summary": "Logcat rules, keyword pre-filter consistency, coverage verdicts, DNS classification and network findings."
+  },
+  {
+   "path": "analyzer/tests/test_model.py",
+   "language": "python",
+   "lines": 45,
+   "sha256": "e6b28d1193cd7d6e",
+   "summary": "Timestamp normalisation, Finding validation, de-duplication order."
+  },
+  {
+   "path": "analyzer/tests/test_packages_system.py",
+   "language": "python",
+   "lines": 165,
+   "sha256": "18a9a021eafb2d14",
+   "summary": "dumpsys package parsing, package rules, device posture and dumpsys analysers."
+  },
+  {
+   "path": "analyzer/tests/test_parity.py",
+   "language": "python",
+   "lines": 41,
+   "sha256": "8c70721e5673e66c",
+   "summary": "Kotlin (on-device) and Python (offline) rules must speak the same finding ids, so reports from"
+  },
+  {
+   "path": "analyzer/tests/test_vt_report_cli.py",
+   "language": "python",
+   "lines": 215,
+   "sha256": "c69817acc25e3535",
+   "summary": "VirusTotal client (mocked), CLI end-to-end on the synthetic sample, baseline/diff, scores."
+  },
+  {
+   "path": "android/build.gradle.kts",
+   "language": "gradle-kotlin",
+   "lines": 5,
+   "sha256": "c89ec2732c3b1805",
+   "summary": "Gradle build script"
+  },
+  {
+   "path": "android/collector/build.gradle.kts",
+   "language": "gradle-kotlin",
+   "lines": 49,
+   "sha256": "67cd32e936e77883",
+   "summary": "Both apps MUST be signed with the same key: the Collector reads the Sentinel"
+  },
+  {
+   "path": "android/collector/src/main/AndroidManifest.xml",
+   "language": "xml",
+   "lines": 37,
+   "sha256": "8882afbc7c612fee",
+   "summary": "Android manifest: permissions and components"
+  },
+  {
+   "path": "android/collector/src/main/java/org/droidsuite/collector/Collector.kt",
+   "language": "kotlin",
+   "lines": 339,
+   "sha256": "fd3fff610cb1a6a8",
+   "summary": "Selectable parts of a collection; [default] = pre-ticked in the UI."
+  },
+  {
+   "path": "android/collector/src/main/java/org/droidsuite/collector/MainActivity.kt",
+   "language": "kotlin",
+   "lines": 158,
+   "sha256": "dd531b016ad6f86a",
+   "summary": "DroidCollector UI: shows which capabilities are granted (READ_LOGS, DUMP, usage access, Sentinel"
+  },
+  {
+   "path": "android/core/build.gradle.kts",
+   "language": "gradle-kotlin",
+   "lines": 21,
+   "sha256": "55549bed13c95969",
+   "summary": "Pure-logic tests run on the JVM; framework stubs return defaults instead of throwing."
+  },
+  {
+   "path": "android/core/src/main/AndroidManifest.xml",
+   "language": "xml",
+   "lines": 2,
+   "sha256": "daa0fb1f32ba7ea8",
+   "summary": "Android manifest: permissions and components"
+  },
+  {
+   "path": "android/core/src/main/java/org/droidsuite/core/AppRules.kt",
+   "language": "kotlin",
+   "lines": 168,
+   "sha256": "15a32c8fbafbc6a9",
+   "summary": "Per-app detection rules, grouped by family. Each rule is an [AppRule]; [ALL] is the registry"
+  },
+  {
+   "path": "android/core/src/main/java/org/droidsuite/core/DeviceProbe.kt",
+   "language": "kotlin",
+   "lines": 150,
+   "sha256": "5cd285956f0ec65f",
+   "summary": "Collects device-wide security posture using only APIs open to normal apps."
+  },
+  {
+   "path": "android/core/src/main/java/org/droidsuite/core/DeviceRules.kt",
+   "language": "kotlin",
+   "lines": 67,
+   "sha256": "f4884e13fa1cec28",
+   "summary": "Device-wide detection rules. Ids match analyzer/droidtriage/system.py so on-device and offline"
+  },
+  {
+   "path": "android/core/src/main/java/org/droidsuite/core/Inventory.kt",
+   "language": "kotlin",
+   "lines": 221,
+   "sha256": "4fe7af18ae9789d5",
+   "summary": "Which APKs get a SHA-256 during a scan. Hashing every system APK costs minutes on first run."
+  },
+  {
+   "path": "android/core/src/main/java/org/droidsuite/core/Ioc.kt",
+   "language": "kotlin",
+   "lines": 91,
+   "sha256": "42e4d825581fd6d9",
+   "summary": "Indicator-of-compromise database. Reads the stalkerware-indicators `ioc.yaml`"
+  },
+  {
+   "path": "android/core/src/main/java/org/droidsuite/core/Model.kt",
+   "language": "kotlin",
+   "lines": 147,
+   "sha256": "e9fd85ff585b2c9b",
+   "summary": "Dashboard buckets."
+  },
+  {
+   "path": "android/core/src/main/java/org/droidsuite/core/RiskEngine.kt",
+   "language": "kotlin",
+   "lines": 126,
+   "sha256": "21e5fdcf8f01ce0e",
+   "summary": "VirusTotal verdict for one SHA-256. positives < 0 means \"not known to VT\"."
+  },
+  {
+   "path": "android/core/src/main/java/org/droidsuite/core/RuleContext.kt",
+   "language": "kotlin",
+   "lines": 54,
+   "sha256": "b4814464e650d513",
+   "summary": "Everything an [AppRule] may need, computed once per evaluation so rules stay O(1) per app."
+  },
+  {
+   "path": "android/core/src/main/java/org/droidsuite/core/Ui.kt",
+   "language": "kotlin",
+   "lines": 82,
+   "sha256": "60b2c0c67da89da6",
+   "summary": "Tiny programmatic view helpers so the apps need no XML resources or AndroidX."
+  },
+  {
+   "path": "android/core/src/main/java/org/droidsuite/core/Util.kt",
+   "language": "kotlin",
+   "lines": 94,
+   "sha256": "bdc6c880271dd332",
+   "summary": "Runs a command as this app's own UID (no root). Many commands fail or"
+  },
+  {
+   "path": "android/core/src/test/java/org/droidsuite/core/Fixtures.kt",
+   "language": "kotlin",
+   "lines": 43,
+   "sha256": "30f5655784c830a0",
+   "summary": "Builders with safe defaults so each test only states what matters."
+  },
+  {
+   "path": "android/core/src/test/java/org/droidsuite/core/IocDbTest.kt",
+   "language": "kotlin",
+   "lines": 54,
+   "sha256": "bcb5f1d186022f80",
+   "summary": "IocDb: stalkerware-indicators YAML, text lists, domain suffix matching."
+  },
+  {
+   "path": "android/core/src/test/java/org/droidsuite/core/RiskEngineTest.kt",
+   "language": "kotlin",
+   "lines": 97,
+   "sha256": "9801f3d462c6fe19",
+   "summary": "RiskEngine + AppRules/DeviceRules behaviour, scores, pluggability and HashPolicy."
+  },
+  {
+   "path": "android/gradle.properties",
+   "language": "properties",
+   "lines": 4,
+   "sha256": "a42062974e509a3f",
+   "summary": "Gradle properties"
+  },
+  {
+   "path": "android/gradle/wrapper/gradle-wrapper.properties",
+   "language": "properties",
+   "lines": 7,
+   "sha256": "3d91f0932da99885",
+   "summary": "Gradle wrapper version"
+  },
+  {
+   "path": "android/sentinel/build.gradle.kts",
+   "language": "gradle-kotlin",
+   "lines": 52,
+   "sha256": "ca2dc5f3b1ebabb1",
+   "summary": "Both apps MUST be signed with the same key: the Collector reads the Sentinel"
+  },
+  {
+   "path": "android/sentinel/src/main/AndroidManifest.xml",
+   "language": "xml",
+   "lines": 75,
+   "sha256": "81483e96857170e9",
+   "summary": "Android manifest: permissions and components"
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/BootReceiver.kt",
+   "language": "kotlin",
+   "lines": 13,
+   "sha256": "45583fa959257930",
+   "summary": "Restarts the monitor after reboot/update, only if the user enabled it."
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/DnsVpnService.kt",
+   "language": "kotlin",
+   "lines": 225,
+   "sha256": "759abdbe7076027f",
+   "summary": "\"DNS-only\" local VPN. Only the fake resolver address 10.111.222.2 is routed into"
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/DomainIntel.kt",
+   "language": "kotlin",
+   "lines": 57,
+   "sha256": "26c2827ead6c5938",
+   "summary": "Offline heuristics for DNS names. Returns a short flag string or null."
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/MainActivity.kt",
+   "language": "kotlin",
+   "lines": 470,
+   "sha256": "50e9259b2e43aa9e",
+   "summary": "DroidSentinel UI, built programmatically (no XML/AndroidX). Tabs: Dashboard (five scores, monitor"
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/MonitorService.kt",
+   "language": "kotlin",
+   "lines": 117,
+   "sha256": "ce993d5885e5c0d0",
+   "summary": "Foreground monitor: reacts instantly to package installs/updates/removals,"
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/NetMonitor.kt",
+   "language": "kotlin",
+   "lines": 82,
+   "sha256": "45f85249eebde1fa",
+   "summary": "Per-app traffic accounting from NetworkStatsManager (needs Usage Access)."
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/Notifier.kt",
+   "language": "kotlin",
+   "lines": 52,
+   "sha256": "fa469f7687699c25",
+   "summary": "Notification channels: high-importance alerts and the low-importance foreground-service status."
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/ReportProvider.kt",
+   "language": "kotlin",
+   "lines": 38,
+   "sha256": "6b346fcca572ad81",
+   "summary": "Read-only report endpoint for the Collector app:"
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/Scanner.kt",
+   "language": "kotlin",
+   "lines": 153,
+   "sha256": "f630489f0be4c29c",
+   "summary": "Full scan + integrity diff against the stored baseline."
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/Store.kt",
+   "language": "kotlin",
+   "lines": 209,
+   "sha256": "a03ab5759e4a0a4c",
+   "summary": "One timeline entry (install/update, integrity change, network or DNS alert, VirusTotal result)."
+  },
+  {
+   "path": "android/sentinel/src/main/java/org/droidsuite/sentinel/VtClient.kt",
+   "language": "kotlin",
+   "lines": 152,
+   "sha256": "e5d2652a48a5c569",
+   "summary": "VirusTotal v3 client."
+  },
+  {
+   "path": "android/sentinel/src/test/java/org/droidsuite/sentinel/DnsPacketTest.kt",
+   "language": "kotlin",
+   "lines": 64,
+   "sha256": "25503e12372b10f2",
+   "summary": "IPv4/UDP datagram 10.111.222.1:40000 -> 10.111.222.2:53 carrying a DNS query for [name]."
+  },
+  {
+   "path": "android/sentinel/src/test/java/org/droidsuite/sentinel/DomainIntelTest.kt",
+   "language": "kotlin",
+   "lines": 34,
+   "sha256": "64e2a22d53d6d65c",
+   "summary": "Same cases as analyzer/tests/test_logs_network.py::Network.test_classify — keep them aligned."
+  },
+  {
+   "path": "android/settings.gradle.kts",
+   "language": "gradle-kotlin",
+   "lines": 16,
+   "sha256": "4c11d8756e147690",
+   "summary": "Gradle settings: module list"
+  },
+  {
+   "path": "docs/GUIDE.md",
+   "language": "markdown",
+   "lines": 392,
+   "sha256": "c392342379520aef",
+   "summary": "FTA user guide (Forensic Triage for Android)"
+  },
+  {
+   "path": "docs/RISK_MATRIX.md",
+   "language": "markdown",
+   "lines": 95,
+   "sha256": "7c67c42da6fd1cfb",
+   "summary": "Android risk coverage matrix"
+  },
+  {
+   "path": "docs/sample_report.html",
+   "language": "html",
+   "lines": 126,
+   "sha256": "6be652fce45c90d0",
+   "summary": "Droid Triage Report"
+  },
+  {
+   "path": "tools/adb_collect.sh",
+   "language": "bash",
+   "lines": 90,
+   "sha256": "94fdb1a9251b1539",
+   "summary": "adb_collect.sh – collect the same evidence as DroidCollector, from a computer over USB."
+  },
+  {
+   "path": "tools/gen_index.py",
+   "language": "python",
+   "lines": 319,
+   "sha256": "4f35947ade10e191",
+   "summary": "Generate PROJECT_INDEX.json: a single machine-readable synthesis of the repository."
+  },
+  {
+   "path": "tools/index_meta.json",
+   "language": "json",
+   "lines": 133,
+   "sha256": "f01dea01108915a3",
+   "summary": "Curated metadata merged into PROJECT_INDEX.json by tools/gen_index.py"
+  },
+  {
+   "path": "tools/kotlin_check.sh",
+   "language": "bash",
+   "lines": 29,
+   "sha256": "a99c6a333e49bc33",
+   "summary": "Compile the Android Kotlin sources and run their JVM unit tests WITHOUT the Android SDK."
+  },
+  {
+   "path": "tools/kotlin_check/build.gradle.kts",
+   "language": "gradle-kotlin",
+   "lines": 26,
+   "sha256": "16209e9dc0a807d2",
+   "summary": "Gradle build script"
+  },
+  {
+   "path": "tools/kotlin_check/settings.gradle.kts",
+   "language": "gradle-kotlin",
+   "lines": 4,
+   "sha256": "976b792aa29f6a82",
+   "summary": "JVM-only harness: type-checks the Android Kotlin sources and runs their unit tests without the"
+  },
+  {
+   "path": "tools/make_keystore.sh",
+   "language": "bash",
+   "lines": 10,
+   "sha256": "c610a25ff3dfe5b9",
+   "summary": "Creates android/suite.keystore used to sign BOTH apps with the same key."
+  }
+ ]
+}

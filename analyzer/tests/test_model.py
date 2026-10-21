@@ -1,3 +1,4 @@
+"""Timestamp normalisation, Finding validation, de-duplication order."""
 import unittest
 from datetime import datetime
 

@@ -1,3 +1,4 @@
+"""VirusTotal client (mocked), CLI end-to-end on the synthetic sample, baseline/diff, scores."""
 import io
 import json
 import os

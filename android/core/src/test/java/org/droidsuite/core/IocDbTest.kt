@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+/** IocDb: stalkerware-indicators YAML, text lists, domain suffix matching. */
 class IocDbTest {
     private val yaml = """
         - name: TheTruthSpy

@@ -1,3 +1,4 @@
+"""dumpsys package parsing, package rules, device posture and dumpsys analysers."""
 import unittest
 
 from droidtriage import packages, system

@@ -1,4 +1,4 @@
-# Android Forensics Suite
+# FTA – Forensic Triage for Android
 
 A defensive toolkit to check **your own** Android phone for spyware, stalkerware, tampering and privacy abuse,
 built to complement scanners like Malwarebytes.
@@ -10,7 +10,20 @@ built to complement scanners like Malwarebytes.
 | **droidtriage** (Python) | Offline deep analysis of that zip: package and permission rules, pure-python APK static analysis (manifest, DEX, v1/v2/v3 certs, payloads, packers, trackers), logcat/dumpsys/appops parsing, stalkerware + MVT spyware IOCs, VirusTotal, timeline, baseline diff → `report.html`, JSON, CSV | `analyzer/` |
 | `adb_collect.sh` | Same evidence collected from a computer over adb (+ optional bugreport for MVT) | `tools/` |
 
-**Docs:** [User guide](docs/GUIDE.md) · [Risk coverage matrix: Malwarebytes vs this suite vs other tools](docs/RISK_MATRIX.md)
+**Docs:** [User guide](docs/GUIDE.md) · [Risk coverage matrix: Malwarebytes vs this suite vs other tools](docs/RISK_MATRIX.md) ·
+[Project index (machine-readable)](PROJECT_INDEX.json) · [Contributor notes for agents](CLAUDE.md)
+
+## Development
+
+```bash
+cd analyzer && python3 -m unittest discover -s tests -t .     # 51 Python tests (stdlib only)
+tools/kotlin_check.sh                                         # Kotlin compile + 16 JVM tests, no Android SDK needed
+cd android && ./gradlew test assembleRelease                  # full Android build (SDK required)
+python3 tools/gen_index.py                                    # refresh PROJECT_INDEX.json after changes
+```
+
+Extending: add an analyser with `@analyzer(...)` (Python) or a rule to `AppRules.ALL` / `DeviceRules.ALL` (Kotlin);
+step-by-step in `.claude/skills/add-detection-rule/SKILL.md`.
 
 ## Quick start
 
@@ -29,12 +42,12 @@ adb shell appops set org.droidsuite.collector GET_USAGE_STATS allow
 #    Later: DroidCollector → Collect… → confirm → save zip → copy to computer
 
 # 4. Analyse
-cd analyzer
-python3 -m droidtriage --update-iocs
-python3 -m droidtriage /path/to/droidcollect_*.zip -o report     # open report/report.html
+cd analyzer && pip install -e .
+droidtriage iocs update
+droidtriage analyze /path/to/droidcollect_*.zip --open
 
 # Demo without a phone:
-python3 tests/make_sample.py /tmp/sample.zip && python3 -m droidtriage /tmp/sample.zip -o /tmp/sample_report
+droidtriage sample /tmp/demo.zip && droidtriage analyze /tmp/demo.zip --open
 ```
 
 ## Design principles

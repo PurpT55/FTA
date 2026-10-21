@@ -1,0 +1,133 @@
+{
+  "project": {
+    "name": "FTA – Forensic Triage for Android",
+    "repository": "https://github.com/PurpT55/FTA",
+    "purpose": "Defensive toolkit to check one's own Android phone for stalkerware, spyware, malware, tampering and privacy abuse; complements signature scanners such as Malwarebytes.",
+    "audience": ["phone owners investigating their own device", "helpers/support organisations", "developers extending detections"],
+    "languages": ["Kotlin (Android, minSdk 26, targetSdk 34)", "Python >= 3.9 (stdlib only)", "Bash", "HTML/JS (single-file report)"],
+    "principles": [
+      "Nothing leaves the device/computer without explicit user action; VirusTotal receives hashes/domains only, uploads need confirmation",
+      "Collect before cleaning (evidence preservation)",
+      "Honest coverage: every report states its blind spots",
+      "No third-party dependencies (no AndroidX, no pip packages)"
+    ]
+  },
+  "components": {
+    "sentinel": {
+      "name": "DroidSentinel",
+      "kind": "android-app",
+      "path": "android/sentinel",
+      "package": "org.droidsuite.sentinel",
+      "purpose": "Always-on monitor with dashboard (privacy risk, security risk, suspicious activity, unknown binaries, malware detected).",
+      "features": [
+        "Integrity baseline per package: APK changed without update, signer change, downgrade, installer change, icon hidden",
+        "Instant package broadcasts + 15 min rescans; notifications for new HIGH/CRITICAL findings",
+        "DNS-only local VPN: per-app DNS log with IOC / DGA / dynamic DNS / tunnel / Telegram-bot / tracker flags",
+        "Per-app traffic via NetworkStatsManager; uploads while screen off; hidden apps uploading",
+        "Pluggable risk engine (AppRules/DeviceRules): accessibility, admin, notification listener, IME, overlay, SMS, StrandHogg task affinity, masquerading, platform key, packers",
+        "VirusTotal hash lookups (rate limited, cached); file upload only after two-step confirmation",
+        "Stalkerware IOC feed download/import; JSON report export; signature-protected report provider for the Collector"
+      ],
+      "maturity": {
+        "level": "alpha",
+        "compiled": "Kotlin type-checked against the Android 14 framework jar (tools/kotlin_check.sh); full AGP build only in CI",
+        "tested": "JVM unit tests for RiskEngine, IocDb, HashPolicy, DnsPacket, DomainIntel",
+        "device_tested": false,
+        "notes": "UI, services, VPN and permissions flows have never run on a real device or emulator."
+      }
+    },
+    "collector": {
+      "name": "DroidCollector",
+      "kind": "android-app",
+      "path": "android/collector",
+      "package": "org.droidsuite.collector",
+      "purpose": "Consent-gated export of logs, dumpsys, settings, CA certs, usage/network history, app inventory, APKs and the Sentinel report into one hashed zip. No INTERNET permission.",
+      "features": [
+        "Explicit consent dialog + user-chosen destination (ACTION_CREATE_DOCUMENT)",
+        "Capability detection: READ_LOGS / DUMP (adb grants), usage access, Sentinel report",
+        "Every zip entry hashed into manifest.json with its source command",
+        "Hash policy: user + updated system APKs by default, all system APKs on request"
+      ],
+      "maturity": {
+        "level": "alpha",
+        "compiled": "type-checked like Sentinel",
+        "tested": "shares core unit tests; no collector-specific tests",
+        "device_tested": false,
+        "notes": "Output layout is exercised indirectly by droidtriage tests (synthetic evidence in the same layout)."
+      }
+    },
+    "droidtriage": {
+      "name": "droidtriage",
+      "kind": "python-cli",
+      "path": "analyzer",
+      "entrypoints": ["droidtriage (pip install -e analyzer)", "python3 -m droidtriage"],
+      "purpose": "Offline deep analysis of collector/adb evidence with HTML/JSON/CSV reports.",
+      "features": [
+        "Analyser registry: inventory, apk, virustotal, device, dumpsys, packages, logcat, network",
+        "Pure-python APK static analysis: binary manifest, DEX strings, v1/v2/v3 signer certs, payloads, packers, trackers, hosts",
+        "dumpsys parsing: roles, device owner, appops background use, jobs/alarms persistence, dropbox crashes, ADB keys, settings history",
+        "Logcat rules with keyword pre-filter; timeline with normalised timestamps",
+        "IOC feeds: stalkerware-indicators YAML, MVT STIX2, text lists",
+        "Baseline diff, standalone APK command, IOC check, VirusTotal commands, synthetic sample generator",
+        "Parallel APK analysis (--jobs)"
+      ],
+      "maturity": {
+        "level": "beta",
+        "tested": "stdlib unittest suite (unit + end-to-end CLI), Python 3.9 and 3.13; binary parsers validated on a real APK (PCAPdroid 1.7.2)",
+        "device_tested": false,
+        "notes": "Never run on evidence from a real phone; dumpsys regexes follow AOSP formats and may need tuning per vendor/version."
+      }
+    },
+    "adb_collect": {
+      "name": "adb_collect.sh",
+      "kind": "bash-script",
+      "path": "tools/adb_collect.sh",
+      "purpose": "Same evidence layout collected over adb (shell user: full dumpsys/logcat), optional bugreport for MVT.",
+      "maturity": {"level": "alpha", "tested": "bash -n syntax check only", "device_tested": false}
+    },
+    "kotlin_check": {
+      "name": "kotlin_check.sh",
+      "kind": "dev-tool",
+      "path": "tools/kotlin_check.sh",
+      "purpose": "Compile Android Kotlin sources and run JVM unit tests without the Android SDK (Robolectric android-all jar).",
+      "maturity": {"level": "stable", "tested": "used for every Kotlin change in this repo"}
+    }
+  },
+  "extension_points": [
+    {"name": "Python analyser", "where": "analyzer/droidtriage/registry.py", "how": "@analyzer(name, order, title) on fn(ctx); import the module in pipeline.py"},
+    {"name": "Logcat rule", "where": "analyzer/droidtriage/logs.py RULES", "how": "LogRule(id, tag_regex|None, msg_regex, severity, category, title, mitre, timeline, keys)"},
+    {"name": "APK code rule", "where": "analyzer/droidtriage/apk.py API_RULES", "how": "(id, needles ('=x' exact), severity, category, title, mitre)"},
+    {"name": "APK manifest rule", "where": "analyzer/droidtriage/apk.py MANIFEST_RULES", "how": "(id, actions set, severity, category, title, mitre)"},
+    {"name": "Kotlin app rule", "where": "android/core/.../AppRules.kt ALL", "how": "AppRule { a, ctx, out -> }"},
+    {"name": "Kotlin device rule", "where": "android/core/.../DeviceRules.kt ALL", "how": "DeviceRule { d, out -> }"},
+    {"name": "Playbook advice", "where": "analyzer/droidtriage/playbook.py PLAYBOOK", "how": "(id prefix, advice); first match wins"},
+    {"name": "IOC format", "where": "analyzer/droidtriage/iocs.py IocDb.load_path + android/core/.../Ioc.kt", "how": "add a parser by file extension"},
+    {"name": "Report section", "where": "analyzer/droidtriage/templates/report.html", "how": "data available as D (report.json); add a nav tab + section"}
+  ],
+  "history": [
+    {"phase": "v1.0", "summary": "Initial build: DroidSentinel, DroidCollector, droidtriage, adb_collect.sh, GUIDE, RISK_MATRIX, sample report. Analyzer tested on synthetic evidence + one real APK; Kotlin type-checked against android-all."},
+    {"phase": "v1.1 review", "summary": "Analyzer: analyser registry, subcommand CLI, logcat pre-filter (2.7x faster), parallel APK analysis, timestamp normalisation, fixed file-handle leak, 51 tests incl. end-to-end and parity. Android: pluggable rule engine, DB indexes (DNS first-seen query was a full scan per packet), HashPolicy (first scan no longer hashes all system APKs), JVM unit tests, kotlin_check harness. Skills, CLAUDE.md, project index, CI with tests."}
+  ],
+  "known_limitations": [
+    "Android apps never built with AGP in this environment nor run on a device: first CI build/device run may surface issues (resources, manifest merger, runtime permissions, OEM battery killers)",
+    "DNS monitor is bypassed by DoH/hard-coded resolvers and Strict Private DNS; NetworkStats attribution lags minutes",
+    "Logcat retention is short; dumpsys formats vary by Android version/OEM",
+    "No detection of kernel/firmware implants, zero-click exploits without traces, cloud-account or carrier-side attacks",
+    "Malwarebytes column of RISK_MATRIX is based on public documentation, not tested",
+    "Python 3.9 is the floor; Windows is untested for adb_collect.sh (use WSL/Git Bash)"
+  ],
+  "roadmap": [
+    "First real-device validation of both apps; fix issues found",
+    "Instrumented/Robolectric tests for Store, Scanner diff and Collector layout",
+    "Vendor-specific dumpsys parser fixtures (Samsung, Xiaomi) from real collections",
+    "Optional MVT interoperability (export findings as STIX2 / read MVT JSON)",
+    "Localised UI strings (currently English, built in code)"
+  ],
+  "conventions": {
+    "finding_id": "family.rule, lowercase, stable; dev.* device-level; log.* logcat; apk.* static analysis",
+    "severity": "CRITICAL confirmed compromise; HIGH abusable access or tampering; MEDIUM suspicious; LOW hygiene; INFO context",
+    "categories": ["PRIVACY", "SECURITY", "SUSPICIOUS", "UNKNOWN", "MALWARE"],
+    "scores": "security = sum(weights of SECURITY+MALWARE findings) capped 100 with CRITICAL 40 / HIGH 15 / MEDIUM 5 / LOW 1; privacy = 0.6*max + 0.4*avg(top10 user-app permission scores)",
+    "tests": "plain-text/JSON fixtures; real APK via DROIDTRIAGE_TEST_APK; no fabricated binaries"
+  }
+}

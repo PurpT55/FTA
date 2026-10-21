@@ -1,12 +1,38 @@
-name: Build APKs
+name: CI
 
 on:
   push:
-    paths: ["android/**", ".github/workflows/build-apks.yml"]
+  pull_request:
   workflow_dispatch:
 
 jobs:
-  build:
+  analyzer:
+    name: droidtriage tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit + end-to-end tests
+        working-directory: analyzer
+        run: python -W error::ResourceWarning -m unittest discover -s tests -t . -v
+      - name: Real-APK parser tests
+        working-directory: analyzer
+        run: |
+          if curl -fsSL -o /tmp/test.apk https://github.com/emanuele-f/PCAPdroid/releases/download/v1.7.2/PCAPdroid_v1.7.2.apk; then
+            DROIDTRIAGE_TEST_APK=/tmp/test.apk python -m unittest tests.test_apk -v
+          else
+            echo "::warning::test APK download failed; real-APK parser tests skipped"
+          fi
+      - name: Project index is up to date
+        run: python tools/gen_index.py --check
+
+  android:
+    name: Android unit tests + APKs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +49,7 @@ jobs:
           else
             ./tools/make_keystore.sh
           fi
-      - name: Build
+      - name: Unit tests + build
         working-directory: android
         env:
           SUITE_KEYSTORE_PASSWORD: ${{ secrets.SUITE_KEYSTORE_PASSWORD }}
@@ -33,7 +59,7 @@ jobs:
           # empty secrets must not override the defaults of make_keystore.sh
           [ -z "$SUITE_KEYSTORE_PASSWORD" ] && unset SUITE_KEYSTORE_PASSWORD SUITE_KEY_ALIAS SUITE_KEY_PASSWORD
           chmod +x gradlew
-          ./gradlew --no-daemon assembleRelease
+          ./gradlew --no-daemon test assembleRelease
           mkdir -p ../out
           cp sentinel/build/outputs/apk/release/*.apk ../out/DroidSentinel.apk
           cp collector/build/outputs/apk/release/*.apk ../out/DroidCollector.apk

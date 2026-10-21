@@ -1,3 +1,4 @@
+"""Logcat rules, keyword pre-filter consistency, coverage verdicts, DNS classification and network findings."""
 import unittest
 
 from droidtriage import logs, network, packages
